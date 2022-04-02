@@ -1,10 +1,64 @@
 import sympy as sp
 import sympy.physics.units.quantities as sq
 from sympy.physics.quantum.constants import hbar
+import re
 
 set_equal = lambda to_set, value : sp.Eq( to_set, value )
 both_sides = lambda equation, operation : sp.Eq( operation( equation.lhs ), operation( equation.rhs ) )
 equation_to_dict = lambda equation : { equation.lhs : equation.rhs }
+
+class Symbols: 
+    
+    FORBIDDEN_IN_SYMBOL = r"[^a-zA-Z0-9]"
+    NUMBER_REGEX = r"[0-9]"
+    PERMISSABLE_PREFIXES = r"[a-zA-Z_]"
+    NUMBER_PREFIX = "_number_"
+    MULTIPLY_REPLACE = "_multiply_"
+    DIVIDE_REPLACE = "_divide_"
+    ADD_REPLACE = "_add_"
+    SUBTRACT_REPLACE = "_subtract_"
+    RAISE_REPLACE = "_raise_"
+    MATH_OPERATIONS_REPLACE = { 
+            '^' : RAISE_REPLACE, 
+            '-' : SUBTRACT_REPLACE, 
+            '+' : ADD_REPLACE, 
+            '*' : MULTIPLY_REPLACE, 
+            '/' : DIVIDE_REPLACE
+        }
+    
+    def __init__( self, *symbols ): 
+        self.add_symbols( symbols )
+    
+    # I dont feel like passing all those parameters again, 
+    # so sanitize and add symbol are in the same method 
+    # for now.
+    
+    def add_symbol( self, 
+                symbol, 
+                particular_replace : dict = MATH_OPERATIONS_REPLACE, 
+                prefix_fix_search = NUMBER_REGEX, 
+                prefix_fix_replace = NUMBER_PREFIX, 
+                universal_replace_search = FORBIDDEN_IN_SYMBOL, 
+                universal_replace = '_', 
+                admissable_prefix_sanity = PERMISSABLE_PREFIXES 
+            ): 
+        symbol_value = symbol
+        symbol = str( symbol )
+        for to_replace, replace_with in particular_replace.items(): 
+            symbol = symbol.replace( to_replace, replace_with )
+        if re.match( prefix_fix_search, symbol[ 0 ] ):
+            symbol = prefix_fix_replace + symbol
+        
+        symbol = re.sub( universal_replace_search, universal_replace, symbol )
+        if re.match( admissable_prefix_sanity, symbol[ 0 ] ) and len( symbol ) > 0: 
+            setattr( self, str( symbol ), symbol_value )
+        return self
+    
+    def add_symbols( self, symbols ): 
+        for symbol in symbols: 
+            self.add_symbol( symbol )
+        return self
+
 
 class Stepper: 
 
@@ -30,7 +84,8 @@ class Stepper:
                 get_element = DEFAULT_GET_ELEMENT, 
                 default_constant_name_base = DEFAULT_CONSTANT_NAME_BASE, 
                 default_checkpoint_name_base = DEFAULT_CHECKPOINT_NAME_BASE, 
-                default_assumptions = []
+                default_assumptions = [], 
+                closed = True
             ): 
         self.steps = new_steps if new_steps else []
         self.steps.append( first_step )
@@ -43,6 +98,7 @@ class Stepper:
         self.default_constant_name_base = default_constant_name_base
         self.default_checkpoint_name_base = default_checkpoint_name_base
         self.assumptions = tuple( default_assumptions )
+        self.closed = closed
     
     def step_number( self, step = None ): 
         return ( len( self.steps ) - 1 ) if not step else step
@@ -98,14 +154,23 @@ class Stepper:
             )
     
     def substitute_constant( self, constant, chain = False, constant_substitute = None ):
-            return self.operate( lambda step : 
-                    self._constant_substitution_operation( constant_substitute )( step, constant ), 
-                    chain = chain 
-                )
+            in_constants = constant in self.constants
+            if in_constants:
+                return self.operate( lambda step : 
+                        self._constant_substitution_operation( constant_substitute )( step, self.constants[ constant ] ), 
+                        chain = chain 
+                    )
+            else: 
+                assert in_constants if self.closed else True 
+                self.operate( lambda step : 
+                        self._constant_substitution_operation( constant_substitute )( step, constant ), 
+                        chain = chain 
+                    ) 
     
     def symbols( self, last_step = None ): 
         last_step = self.last_step( last_step )
-        return list( last_step.atoms() ) + list( last_step.atoms( sp.Function ) )
+        symbol_list = list( last_step.atoms() ) + list( last_step.atoms( sp.Function ) )
+        return Symbols( *tuple( symbol_list ) )
     
     def rename( self, old_symbol, new_symbol_name, chain = False ): 
         last_step = self.last_step()

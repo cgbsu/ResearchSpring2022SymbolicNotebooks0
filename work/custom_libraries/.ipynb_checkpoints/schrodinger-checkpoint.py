@@ -59,7 +59,7 @@ class StairWell( sp.Function ):
     UNIFORM_POTENTIALS = ( 
             UNIFORM_POTENTIAL_SYMBOL, 
             2 * UNIFORM_POTENTIAL_SYMBOL / 3, 
-            3 * UNIFORM_POTENTIAL_SYMBOL / 3
+            UNIFORM_POTENTIAL_SYMBOL / 3
         )
     NON_UNIFORM_STAIR_LENGTHS = sp.symbols( "L_0 L_1 L_2" )
     NON_UNIFORM_POTENTIALS = sp.symbols( "V_0 V_1 V_2" )
