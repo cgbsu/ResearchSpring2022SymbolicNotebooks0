@@ -26,8 +26,11 @@ class Symbols:
             '/' : DIVIDE_REPLACE
         }
     
-    def __init__( self, *symbols ): 
-        self.add_symbols( symbols )
+    def __init__( self, *symbols, table = None ): 
+        if symbols or len( symbols ) > 0: 
+            self.add_symbols( symbols )
+        if table: 
+            self.table_to_symbols( table )
     
     # I dont feel like passing all those parameters again, 
     # so sanitize and add symbol are in the same method 
@@ -35,6 +38,7 @@ class Symbols:
     
     def add_symbol( self, 
                 symbol, 
+                value = None, 
                 particular_replace : dict = MATH_OPERATIONS_REPLACE, 
                 prefix_fix_search = NUMBER_REGEX, 
                 prefix_fix_replace = NUMBER_PREFIX, 
@@ -42,7 +46,7 @@ class Symbols:
                 universal_replace = '_', 
                 admissable_prefix_sanity = PERMISSABLE_PREFIXES 
             ): 
-        symbol_value = symbol
+        symbol_value = value if value != None else symbol
         symbol = str( symbol )
         for to_replace, replace_with in particular_replace.items(): 
             symbol = symbol.replace( to_replace, replace_with )
@@ -54,9 +58,14 @@ class Symbols:
             setattr( self, str( symbol ), symbol_value )
         return self
     
-    def add_symbols( self, symbols ): 
+    def add_symbols( self, symbols ):
         for symbol in symbols: 
             self.add_symbol( symbol )
+        return self
+    
+    def table_to_symbols( self, symbol_table : dict ): 
+        for symbol in symbol_table.keys(): 
+            self.add_symbol( symbol, symbol_table[ symbol ] )
         return self
 
 
@@ -72,6 +81,15 @@ class Stepper:
             0 : lambda step : step.lhs, 
             1 : lambda step : step.rhs, 
         }[ element ]( step )
+    as_expressions = lambda table : { 
+            symbol : table[ symbol ].last_step().rhs 
+            for symbol in table.keys() 
+        }
+    as_equations = lambda table : { 
+            symbol : table[ symbol ].last_step() 
+            for symbol in table.keys() 
+        }
+    
     # Will be subscripted
     DEFAULT_CONSTANT_NAME_BASE = 'K'
     # Will be subscripted
@@ -167,6 +185,19 @@ class Stepper:
                         chain = chain 
                     ) 
     
+    def constants_as_symbols( self, last_step = None ): 
+        last_step = self.last_step( last_step )
+        return Symbols( *tuple( self.constants.keys() ) )
+    
+    def constant_symbols( 
+                self, 
+                last_step = None,
+                format_as = as_equations
+            ): 
+        return Symbols(
+                table = format_as( self.constants )
+            )
+        
     def symbols( self, last_step = None ): 
         last_step = self.last_step( last_step )
         symbol_list = list( last_step.atoms() ) + list( last_step.atoms( sp.Function ) )
