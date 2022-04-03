@@ -7,11 +7,40 @@ set_equal = lambda to_set, value : sp.Eq( to_set, value )
 both_sides = lambda equation, operation : sp.Eq( operation( equation.lhs ), operation( equation.rhs ) )
 equation_to_dict = lambda equation : { equation.lhs : equation.rhs }
 
+def braces_paired( 
+            text, 
+            open_brace_character = '(', 
+            close_brace_character = ')' 
+        ): 
+    unmatched_braces = 0
+    convert = { True : 1, False : 0 }
+    for character in text: 
+        unmatched_braces += convert[ character == open_brace_character ]
+        unmatched_braces -= convert[ character == close_brace_character ]
+    return unmatched_braces == 0
+
+class FunctionSymbol: 
+    def __init__( self, function_name, parameter_value_table = None ): 
+        self.function_name = function_name
+        self.parameter_value_table = parameter_value_table \
+                if type( parameter_value_table ) is dict \
+                else { str( parameter_value_table ) : sp.Function( function_name )( *parameter_value_table ) } \
+                        if parameter_value_table \
+                        else {}
+        print( "FUNCTION NAME", self.function_name, "PARAMETER_VALUE_TABLE", self.parameter_value_table, "PASSED VALUE", parameter_value_table )
+    
+    def __call__( self, parameter ): 
+        key = parameter if type( parameter ) is tuple else ( parameter, )
+        print( "ACCESS: FUNCTION NAME", self.function_name, "PARAMETER_VALUE_TABLE", self.parameter_value_table )
+        return self.parameter_value_table[ str( key ) ]
+
 class Symbols: 
     
     FORBIDDEN_IN_SYMBOL = r"[^a-zA-Z0-9]"
     NUMBER_REGEX = r"[0-9]"
     PERMISSABLE_PREFIXES = r"[a-zA-Z_]"
+    IS_FUNCTION_REGEX = r"(.+\(+.+\)).+"
+    FUNCTION_WITH_PARAMETER_REGEX = r".+\(.+\)" #########################################
     NUMBER_PREFIX = "_number_"
     MULTIPLY_REPLACE = "_multiply_"
     DIVIDE_REPLACE = "_divide_"
@@ -44,10 +73,19 @@ class Symbols:
                 prefix_fix_replace = NUMBER_PREFIX, 
                 universal_replace_search = FORBIDDEN_IN_SYMBOL, 
                 universal_replace = '_', 
-                admissable_prefix_sanity = PERMISSABLE_PREFIXES 
+                admissable_prefix_sanity = PERMISSABLE_PREFIXES, 
+                is_function = IS_FUNCTION_REGEX
             ): 
         symbol_value = value if value != None else symbol
+        original_symbol = symbol
         symbol = str( symbol )
+        print( symbol )
+        # More then one "function call" can match, so we see if only one does
+        function_match = re.match( is_function, symbol )
+        if function_match.groups( 0 ).strip() if function_match else False \
+                != symbol.strip(): 
+            symbol = str( original_symbol.func )
+            symbol_value = FunctionSymbol( symbol, original_symbol.args )
         for to_replace, replace_with in particular_replace.items(): 
             symbol = symbol.replace( to_replace, replace_with )
         if re.match( prefix_fix_search, symbol[ 0 ] ):
@@ -87,6 +125,10 @@ class Stepper:
         }
     as_equations = lambda table : { 
             symbol : table[ symbol ].last_step() 
+            for symbol in table.keys() 
+        }
+    as_steppers = lambda table : { 
+            symbol : table[ symbol ] 
             for symbol in table.keys() 
         }
     
