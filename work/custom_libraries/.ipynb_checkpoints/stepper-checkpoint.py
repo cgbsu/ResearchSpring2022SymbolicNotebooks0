@@ -27,11 +27,16 @@ class FunctionSymbol:
                 else { str( parameter_value_table ) : sp.Function( function_name )( *parameter_value_table ) } \
                         if parameter_value_table \
                         else {}
-        print( "FUNCTION NAME", self.function_name, "PARAMETER_VALUE_TABLE", self.parameter_value_table, "PASSED VALUE", parameter_value_table )
+    
+    def add_entry( self, parameter, value = None ): 
+        key = parameter if type( parameter ) is tuple else ( parameter, )
+        self.parameter_value_table[ key ] = \
+                sp.Function( function_name )( *parameter_value_table ) \
+                if value == None \
+                else value
     
     def __call__( self, parameter ): 
         key = parameter if type( parameter ) is tuple else ( parameter, )
-        print( "ACCESS: FUNCTION NAME", self.function_name, "PARAMETER_VALUE_TABLE", self.parameter_value_table )
         return self.parameter_value_table[ str( key ) ]
 
 class Symbols: 
@@ -54,6 +59,43 @@ class Symbols:
             '*' : MULTIPLY_REPLACE, 
             '/' : DIVIDE_REPLACE
         }
+        
+    def _sanitize( 
+                symbol, 
+                particular_replace : dict = MATH_OPERATIONS_REPLACE, 
+                prefix_fix_search = NUMBER_REGEX, 
+                prefix_fix_replace = NUMBER_PREFIX, 
+                universal_replace_search = FORBIDDEN_IN_SYMBOL, 
+                universal_replace = '_', 
+                admissable_prefix_sanity = PERMISSABLE_PREFIXES 
+            ): 
+        for to_replace, replace_with in particular_replace.items(): 
+            symbol = symbol.replace( to_replace, replace_with )
+        if re.match( prefix_fix_search, symbol[ 0 ] ):
+            symbol = prefix_fix_replace + symbol
+        symbol = re.sub( universal_replace_search, universal_replace, symbol )
+        assert re.match( admissable_prefix_sanity, symbol[ 0 ] ) and len( symbol ) > 0
+        return symbol
+    
+    def _push_function( 
+                symbol, 
+                symbol_value, 
+                is_function = FUNCTION_WITH_PARAMETER_REGEX
+            ):
+        original_symbol = symbol
+        symbol = str( symbol )
+        function_match = re.match( is_function, symbol )
+        function_match = ( symbol[ function_match.start() : function_match.end() ] if function_match else False )
+        if function_match == symbol: 
+            symbol = str( original_symbol.func )
+            if symbol_value == original_symbol: 
+                symbol_value = FunctionSymbol( symbol, original_symbol.args )
+            elif type( symbol_value ) is dict: 
+                symbol_value = FunctionSymbol( symbol, symbol_value )
+            else: 
+                symbol_value = FunctionSymbol( symbol, { original_symbol.args : symbol_value } )
+            return symbol, symbol_value
+        return None, None
     
     def __init__( self, *symbols, table = None ): 
         if symbols or len( symbols ) > 0: 
@@ -61,40 +103,31 @@ class Symbols:
         if table: 
             self.table_to_symbols( table )
     
-    # I dont feel like passing all those parameters again, 
-    # so sanitize and add symbol are in the same method 
-    # for now.
-    
-    def add_symbol( self, 
+    def add_symbol( 
+                self, 
                 symbol, 
                 value = None, 
-                particular_replace : dict = MATH_OPERATIONS_REPLACE, 
-                prefix_fix_search = NUMBER_REGEX, 
-                prefix_fix_replace = NUMBER_PREFIX, 
-                universal_replace_search = FORBIDDEN_IN_SYMBOL, 
-                universal_replace = '_', 
-                admissable_prefix_sanity = PERMISSABLE_PREFIXES, 
-                is_function = FUNCTION_WITH_PARAMETER_REGEX
+                sanitize = _sanitize, 
+                push_function = _push_function
             ): 
         symbol_value = value if value != None else symbol
         original_symbol = symbol
         symbol = str( symbol )
-        print( symbol )
         # More then one "function call" can match, so we see if only one does
-        function_match = re.match( is_function, symbol )
-        function_match = ( symbol[ function_match.start() : function_match.end() ] if function_match else False )
-        print( "G ZERO ", function_match )
-        if function_match == symbol: 
-            symbol = str( original_symbol.func )
-            symbol_value = FunctionSymbol( symbol, original_symbol.args )
-        for to_replace, replace_with in particular_replace.items(): 
-            symbol = symbol.replace( to_replace, replace_with )
-        if re.match( prefix_fix_search, symbol[ 0 ] ):
-            symbol = prefix_fix_replace + symbol
-        
-        symbol = re.sub( universal_replace_search, universal_replace, symbol )
-        if re.match( admissable_prefix_sanity, symbol[ 0 ] ) and len( symbol ) > 0: 
-            setattr( self, str( symbol ), symbol_value )
+        function_symbol, function_symbol_value = push_function( original_symbol, symbol_value )
+        if function_symbol: 
+            function_symbol = sanitize( function_symbol )
+        symbol = sanitize( symbol )
+        if function_symbol in dir( self ): 
+            function_canidate = getattr( self, function_symbol )
+            if type( function_canidate ) is FunctionSymbol: 
+                function_canidate.add_entry( 
+                        original_symbol.args, 
+                        function_symbol_value( original_symbol.args ) 
+                    )
+        else: 
+            setattr( self, str( function_symbol ), function_symbol_value )
+        setattr( self, str( symbol ), symbol_value )
         return self
     
     def add_symbols( self, symbols ):
