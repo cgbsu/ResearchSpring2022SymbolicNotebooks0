@@ -74,7 +74,7 @@ class Symbols:
                 universal_replace_search = FORBIDDEN_IN_SYMBOL, 
                 universal_replace = '_', 
                 admissable_prefix_sanity = PERMISSABLE_PREFIXES, 
-                is_function = IS_FUNCTION_REGEX
+                is_function = FUNCTION_WITH_PARAMETER_REGEX
             ): 
         symbol_value = value if value != None else symbol
         original_symbol = symbol
@@ -82,8 +82,9 @@ class Symbols:
         print( symbol )
         # More then one "function call" can match, so we see if only one does
         function_match = re.match( is_function, symbol )
-        if function_match.groups( 0 ).strip() if function_match else False \
-                != symbol.strip(): 
+        function_match = ( symbol[ function_match.start() : function_match.end() ] if function_match else False )
+        print( "G ZERO ", function_match )
+        if function_match == symbol: 
             symbol = str( original_symbol.func )
             symbol_value = FunctionSymbol( symbol, original_symbol.args )
         for to_replace, replace_with in particular_replace.items(): 
