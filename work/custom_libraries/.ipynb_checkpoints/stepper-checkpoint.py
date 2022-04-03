@@ -7,6 +7,8 @@ set_equal = lambda to_set, value : sp.Eq( to_set, value )
 both_sides = lambda equation, operation : sp.Eq( operation( equation.lhs ), operation( equation.rhs ) )
 equation_to_dict = lambda equation : { equation.lhs : equation.rhs }
 
+not_none_value = lambda value, default : value if value != None else default
+
 def braces_paired( 
             text, 
             open_brace_character = '(', 
@@ -139,7 +141,13 @@ class Symbols:
         for symbol in symbol_table.keys(): 
             self.add_symbol( symbol, symbol_table[ symbol ] )
         return self
-
+    
+    def symbol_by_string_name( 
+                self, 
+                symbol, 
+                sanitize = _sanitize 
+            ): 
+        return getattr( self, sanitize( str( symbol ) ) )
 
 class Stepper: 
 
@@ -188,6 +196,7 @@ class Stepper:
         self.constant_substitution = constant_substitution
         self.get_element = get_element
         self.check_points = {}
+        self.check_point_steps = {}
         self.constants = {}
         self.default_constant_name_base = default_constant_name_base
         self.default_checkpoint_name_base = default_checkpoint_name_base
@@ -341,7 +350,23 @@ class Stepper:
     def check_point( self, name_or_marker = None, from_step = None, chain = False ): 
         checkpoint_name = self._default_check_point_name( name_or_marker )
         self.check_points[ checkpoint_name ] = self.last_step( from_step )
+        self.check_point_steps[ checkpoint_name ] = self.steps.index( self.last_step( from_step ) )
         return self._return_chain( self.check_points[ checkpoint_name ], chain )
+    
+    def restore_from_check_point( self, name_or_marker, add_not_undo = True, chain = False ): 
+        assert name_or_marker in self.check_points
+        step = None
+        if add_not_undo: 
+            step = self.add_step( self.check_points[ name_or_marker ] )
+        else: 
+            check_point_index = self.check_point_steps[ name_or_marker ]
+            if check_point_index >= 0: 
+                for ii in range( self.step_number() - check_point_index ): 
+                    self.undo()
+                for key in self.check_point_steps.keys(): 
+                    if self.check_point_steps[ key ] > check_point_index: 
+                        self.check_point_steps[ key ] = -1
+        return self._return_chain( self.check_points[ name_or_marker ], chain )
     
     def constant_names( self ): 
         return list( self.constants.keys() )

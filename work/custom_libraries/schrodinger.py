@@ -117,7 +117,7 @@ make_psi_parameter_constrained = lambda psi_function, region_potential_table, po
         [ psi_function( position < region ) for region in region_potential_table.keys() ]
 
 make_numbered_psi_function = lambda psi_function, region_potential_table : [ \
-        sp.Function( str( psi_function.func ) + "_{" + ii + '}' ) \
+        sp.Function( '\\' + str( psi_function ) + "_{" + str( ii ) + '}' ) \
         for ii in range( len( region_potential_table ) ) \
     ]
 
@@ -132,6 +132,12 @@ def make_psi_numbered_parameter_constrained( psi_function, region_potential_tabl
 
 class TimeIndependentSchrodingerConstantPotentials1D: 
 
+    DEFAULT_CHECK_POINT_NAME_BASE = "TimeIndependentSchrodingerConstantPotentials1DCheckPoint"
+    DEFAULT_CONSTANT_NAME_BASE = 'k'
+    
+    BEFORE_SOLVE_HARMONIC = "BeforeSolveHarmonic"
+    SOLVED_HARMONIC = "SolveHarmonicSolved"
+    
     def __init__( 
                 self, 
                 region_potential_table, 
@@ -143,10 +149,12 @@ class TimeIndependentSchrodingerConstantPotentials1D:
                 mass = MASS_SYMBOL, 
                 reduced_planck_constant = hbar, 
                 position = POSITION_SYMBOL, 
-                make_psis = make_psi_parameter_constrained
+                make_psis = make_psi_parameter_constrained, 
+                check_point_name_base = DEFAULT_CHECK_POINT_NAME_BASE, 
+                constant_name_base = DEFAULT_CONSTANT_NAME_BASE, 
+                check_point_count= 0
             ): 
         self.region_potential_table = region_potential_table
-
         self.repeating = repeating 
         self.inverse_repeating = inverse_repeating 
         self.psi_function = psi_function 
@@ -156,7 +164,9 @@ class TimeIndependentSchrodingerConstantPotentials1D:
         self.reduced_planck_constant = reduced_planck_constant 
         self.position = position
         self.make_psis = make_psis
-        
+        self.check_point_name_base = check_point_name_base
+        self.constant_name_base = constant_name_base
+        self.check_point_count = check_point_count
         self.psis = make_psis( self.psi_function, self.region_potential_table, self.position )
         region_psi_table = self.region_psi_table()
         
@@ -182,3 +192,45 @@ class TimeIndependentSchrodingerConstantPotentials1D:
     
     def region_psi_table( self ): 
         return zip_to_table( self.region_potential_table.keys(), self.psis )
+    
+    def second_derivative( self, equation_index : int ): 
+        return sp.Derivative( self.psis[ equation_index ], ( self.position, 2 ) )
+
+    def _new_check_point_number( self ): 
+        self.check_point_count += 1
+        return str( self.check_point_count - 1 )
+        
+    def _harmonic_constant_name( self, equation_index, name_base = None ): 
+        name_base = not_none_value( name_base, self.constant_name_base )
+        return name_base + '_' + str( equation_index )
+    
+    def make_harmonic_constant( self, equation_index : int, name_base = None ): 
+        equation = self.equations[ equation_index ]
+        psi = self.psis[ equation_index ]
+        before_check_point = self.check_point_name_base \
+                + TimeIndependentSchrodingerConstantPotentials1D.BEFORE_SOLVE_HARMONIC \
+                + self._new_check_point_number()
+        equation.check_point( before_check_point )
+        psi_solution = sp.solve( equation.last_step(), psi )
+        psi_solution = psi_solution[ 0 ] if type( psi_solution ) is list else psi_solution
+        #sp.pprint( psi_solution )
+        equation.add_step( sp.Eq( psi, psi_solution ) )
+        # For Stepper's / and /= are the same
+        second_deriviative = self.second_derivative( equation_index )
+        #equation.add_step( sp.Eq( 
+        #        psi / second_deriviative, 
+        #        psi_solution / self.second_derivative( equation_index ) 
+        #    ) )
+        #sp.pprint( equation.last_step() )
+        equation / second_deriviative
+        equation ** ( -1 )
+        constant_name = self._harmonic_constant_name( equation_index, name_base )
+        equation.right_to_constant( constant_name )
+        equation.check_point( 
+                self.check_point_name_base \
+                    + TimeIndependentSchrodingerConstantPotentials1D.SOLVED_HARMONIC \
+                    + self._new_check_point_number()
+            )
+        equation.restore_from_check_point( before_check_point, True )
+        #print( dir( equation.symbols() ) )
+        return equation.constant_symbols().symbol_by_string_name( constant_name )
