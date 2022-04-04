@@ -9,6 +9,15 @@ equation_to_dict = lambda equation : { equation.lhs : equation.rhs }
 
 not_none_value = lambda value, default : value if value != None else default
 
+def display_steps( steppers, step = None ): 
+    for stepper in steppers: 
+        display( stepper.last_step( step ) )
+
+def display_in( iterable ): 
+    for ii in iterable: 
+        display( ii )
+
+
 def braces_paired( 
             text, 
             open_brace_character = '(', 
@@ -47,7 +56,7 @@ class Symbols:
     NUMBER_REGEX = r"[0-9]"
     PERMISSABLE_PREFIXES = r"[a-zA-Z_]"
     IS_FUNCTION_REGEX = r"(.+\(+.+\)).+"
-    FUNCTION_WITH_PARAMETER_REGEX = r".+\(.+\)" #########################################
+    FUNCTION_WITH_PARAMETER_REGEX = r".+\(.+\)"
     NUMBER_PREFIX = "_number_"
     MULTIPLY_REPLACE = "_multiply_"
     DIVIDE_REPLACE = "_divide_"
@@ -395,20 +404,17 @@ class Stepper:
     def root( self, degree, chain = False, apply = None ): 
         return self.manipulate( lambda side : sp.root( side, degree ), chain, apply )
 
-    def __mul__( self, multiplicand ): 
+    def __imul__( self, multiplicand ): 
         return self.manipulate( lambda side : side * multiplicand, True )
     
-    def __truediv__( self, denomonator ): 
+    def __itruediv__( self, denomonator ): 
         return self.manipulate( lambda side : side / denomonator, True )
     
-    def __add__( self, addend ): 
+    def __iadd__( self, addend ): 
         return self.manipulate( lambda side : side + addend, True )
     
-    def __sub__( self, subtrahend ): 
+    def __isub__( self, subtrahend ): 
         return self.manipulate( lambda side : side - subtrahend, True )
     
-    def __pow__( self, power ): 
+    def __ipow__( self, power ): 
         return self.manipulate( lambda side : side ** power, True )
-    
-    
-    

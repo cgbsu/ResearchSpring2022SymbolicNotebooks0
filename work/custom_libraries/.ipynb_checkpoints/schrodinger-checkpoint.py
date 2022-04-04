@@ -130,17 +130,89 @@ def make_psi_numbered_parameter_constrained( psi_function, region_potential_tabl
     regions = region_potential_table.keys()
     return [ psis[ ii ]( position < regions[ ii ] ) for ii in range( len( region_potential_table ) ) ]
 
-class TimeIndependentSchrodingerConstantPotentials1D: 
+#class SystemSolver: 
+#    
+#    def __init__( self, conditions ): 
+#        self.conditions = conditions
+
+potential_none_to_list = lambda none_canidate : [] if none_canidate == None else none_canidate
+
+class Boundries: 
+    """TODO: (Speculative)
+        * : Add relations between objects in boundry, such as =, >, <, <=, >=, and, or, xor
+        * : Make no "special" group, but make it be able to have groups of groups of groups for ex.
+        * : boundries_with method that can address boundry by reffering too an object in them, for 
+                instance my_boundries.boundries_with( "continunity_boundries", my_boundries.symbols().psi( x ) ) to return 
+                a list of boundries that contain psi( x ) (either as a key, value, or whatever it is stored in)
+        * : More granular remove_boundries, possibly that can work with boundries_with
+        * : Somehow make boundries associative/communative
+    """
+    
+    
+    def __init__( self, initial_boundries = None ): 
+        self.boundries = not_none_value( initial_boundries, {} )
+    
+    def add_boundries( self, set_name, boundries, automatically_append = False,  ): 
+        set_name_in_boundries = set_name in self.boundries
+        """Prevents overwriting boundries unless explicitly specified to do so.
+        It is computed twice, but if the assertion is thrown, the client may see 
+        the explicit problem."""
+        assert True if automatically_append == True else not set_name_in_boundries, """
+                Attempt to set boundries when set already exists, set `automatically_append` to `True` or call `append_boundries` to append
+                """
+        if set_name_in_boundries == True and automatically_append == True: 
+            self.append_boundries( set_name, boundries )
+        elif set_name_in_boundries == False: 
+            self.boundries[ set_name ] = boundries
+            setattr( self, set_name, self.boundries[ set_name ] )
+        else: 
+            assert set_name_in_boundries, ( "Attempt to overwrite existing boundries: " + set_name )
+        return set_name, self.boundries[ set_name ]
+    
+    def append_boundries( self, set_name, to_append ): 
+            self.boundries[ set_name ].update( boundries )
+            return set_name, self.boundries[ set_name ]
+        
+    def remove_boundry_set( self, set_name ): 
+        return set_name, self.boundries.pop( set_name )
+    
+    def remove_boundries( 
+                self, 
+                set_name, 
+                keys : list, 
+                values : list, 
+                key_or_value : list 
+            ): 
+        removed = []
+        boundry_set = self.boundries[ set_name ]
+        keys = tuple( potential_none_to_list( keys ) + potential_none_to_list( key_or_value ) )
+        removed = [ boundry_set.pop( key ) for key in keys ]
+        values = tuple( potential_none_to_list( values ) + potential_none_to_list( key_or_value ) )
+        removed = removed + [ boundry_set[ key ] for key in boundry_set.keys() if boundry_set[ key ] in values ]
+        return set_name, removed
+    
+    def has_set( self, set_name ): 
+        return set_name in self.boundries
+    
+to_functions = lambda functions_with_parameters : ( function for function in functions_with_parameters )
+
+class TimeIndependentSchrodingerConstantPotentials1D( Symbols ): 
 
     DEFAULT_CHECK_POINT_NAME_BASE = "TimeIndependentSchrodingerConstantPotentials1DCheckPoint"
     DEFAULT_CONSTANT_NAME_BASE = 'k'
     
-    BEFORE_SOLVE_HARMONIC = "BeforeSolveHarmonic"
-    SOLVED_HARMONIC = "SolveHarmonicSolved"
-    
+    CHECK_POINT_BEFORE_SOLVE_HARMONIC = "BeforeSolveHarmonic"
+    CHECK_POINT_SOLVED_HARMONIC = "SolveHarmonicSolved"
+
+    BOUNDRY_CONTINUITY_CONDITIONS = "ContinuityConditions"
+    BOUNDRY_REPEATING_POTENTIALS_CONDITION = "RepeatingPotentialsCondition"
+        
     def __init__( 
                 self, 
                 region_potential_table, 
+                region_end, 
+                region_start = 0, 
+                initial_boundries = None, 
                 repeating = False, 
                 inverse_repeating = False, 
                 psi_function = PSI_FUNCTION, 
@@ -149,10 +221,11 @@ class TimeIndependentSchrodingerConstantPotentials1D:
                 mass = MASS_SYMBOL, 
                 reduced_planck_constant = hbar, 
                 position = POSITION_SYMBOL, 
-                make_psis = make_psi_parameter_constrained, 
+                make_psis = make_psi_numbered, 
                 check_point_name_base = DEFAULT_CHECK_POINT_NAME_BASE, 
                 constant_name_base = DEFAULT_CONSTANT_NAME_BASE, 
-                check_point_count= 0
+                check_point_count= 0, 
+                psi_parameter_based = None
             ): 
         self.region_potential_table = region_potential_table
         self.repeating = repeating 
@@ -167,7 +240,12 @@ class TimeIndependentSchrodingerConstantPotentials1D:
         self.check_point_name_base = check_point_name_base
         self.constant_name_base = constant_name_base
         self.check_point_count = check_point_count
-        self.psis = make_psis( self.psi_function, self.region_potential_table, self.position )
+        self.psi_parameter_based = not_none_value( psi_parameter_based, self.make_psis == make_psi_parameter_constrained )
+        self.psis = self.make_psis( self.psi_function, self.region_potential_table, self.position )
+        # This stepper will not be used for an equation, but for storing boundry conditions
+        # Simply wont call things that have left or right in their name, may need to make use 
+        # of some of the optional parameters and specify a couple of lambdas
+        self.boundries = Boundries( initial_boundries )
         region_psi_table = self.region_psi_table()
         
         self.vanilla_schrodinger_equation_1d = \
@@ -186,7 +264,10 @@ class TimeIndependentSchrodingerConstantPotentials1D:
                         .replace( self.psi_function( self.position ), region_psi_table[ region ] ) ) \
                 for region, potential in self.region_potentials()
             ]
-    
+        
+        self.harmonic_constants = self._make_harmonic_constants()
+        self._impose_continuity_conditions()
+        
     def region_potentials( self ): 
         return table_to_pairs( self.region_potential_table )
     
@@ -204,33 +285,93 @@ class TimeIndependentSchrodingerConstantPotentials1D:
         name_base = not_none_value( name_base, self.constant_name_base )
         return name_base + '_' + str( equation_index )
     
-    def make_harmonic_constant( self, equation_index : int, name_base = None ): 
+    def _make_harmonic_constant( self, equation_index : int, name_base = None ): 
         equation = self.equations[ equation_index ]
         psi = self.psis[ equation_index ]
         before_check_point = self.check_point_name_base \
-                + TimeIndependentSchrodingerConstantPotentials1D.BEFORE_SOLVE_HARMONIC \
+                + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BEFORE_SOLVE_HARMONIC \
                 + self._new_check_point_number()
         equation.check_point( before_check_point )
         psi_solution = sp.solve( equation.last_step(), psi )
         psi_solution = psi_solution[ 0 ] if type( psi_solution ) is list else psi_solution
-        #sp.pprint( psi_solution )
         equation.add_step( sp.Eq( psi, psi_solution ) )
-        # For Stepper's / and /= are the same
         second_deriviative = self.second_derivative( equation_index )
-        #equation.add_step( sp.Eq( 
-        #        psi / second_deriviative, 
-        #        psi_solution / self.second_derivative( equation_index ) 
-        #    ) )
-        #sp.pprint( equation.last_step() )
-        equation / second_deriviative
-        equation ** ( -1 )
+        # For Stepper's / and ** are the same as /= **=
+        equation /= second_deriviative
+        equation **= ( -1 )
+        equation.root( 2 )
         constant_name = self._harmonic_constant_name( equation_index, name_base )
         equation.right_to_constant( constant_name )
         equation.check_point( 
                 self.check_point_name_base \
-                    + TimeIndependentSchrodingerConstantPotentials1D.SOLVED_HARMONIC \
+                    + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SOLVED_HARMONIC \
                     + self._new_check_point_number()
             )
         equation.restore_from_check_point( before_check_point, True )
-        #print( dir( equation.symbols() ) )
         return equation.constant_symbols().symbol_by_string_name( constant_name )
+    
+    def _make_harmonic_constants( self, name_base = None ): 
+        return [ self._make_harmonic_constant( ii, name_base ) for ii in range( len( self.region_potential_table ) ) ]
+    
+    def _impose_continuity_conditions( self, parameter_based = None ): 
+        """Run automatically in __init__ constructor, standard requirment of Quantum mechanichs where the 
+        wave function must be continuous, realized here by the symbolic representations of what is 
+        (hopefully) functionally equivelent too: 
+        let there be a wave functions psi indexed by i, with corresponding distances D indexed by i
+        let \psi_{i}( L ) = \psi_{i + 1}( L ) where L = \sum_0^i{D_i}
+        This will be imposed for every wave function in the set that has a wave function following it
+        this is non-circular, see `impose_repeating_potentials_condition` for making 
+        a repeating condition
+        
+        return: name of "boundry set" (str) added and boundry set (dict)
+        rtype: tuple( str, dict )
+        """
+        assert not not_none_value( self.psi_parameter_based, parameter_based ), """
+        Parameter based continuity condition not yet supported! Try using numbered instead (default)
+        TODO: Requires using infentesmials
+        """
+        regions = tuple( self.region_psi_table().keys() )
+        assert len( self.psis ) == len( regions )
+        length = len( self.psis )
+        return self.boundries.add_boundries( 
+                TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_CONTINUITY_CONDITIONS, {
+                        self.psis[ ii ].func( regions[ ii ] ) : self.psis[ ii + 1 ].func( regions[ ii ] )
+                                for ii in range( length ) if ( ii + 1 ) < length
+            } )
+
+    def update_harmonic_constants( self, name_base = None ): 
+        self.harmonic_constants = self._make_harmonic_constants( name_base )
+        return self.harmonic_constants
+    
+    def psis_to_functions( self ): 
+        return to_functions( self.psis )
+    
+    def impose_repeating_potentials_condition( self, start = None, end = None ): 
+        """Impose the assumption that the first wave function 
+        of the first (zeroth/0th) region at `start` will 
+        be equal to the last ("nth"/"n'th") wave function 
+        at `end`, `start` defaults to `self.region_start`, 
+        and `end` to `self.region_end`
+        
+        Arguments: 
+        
+        start: The parameter to the first/0th/zeroth wave function, 
+                physical location of the beggining of the first potential 
+                region, defaults to `self.region_start`, the zeroth 
+                wave function of this parameter will be set to the nth/last 
+                wave function of `end`
+        end: The parameter to the last/nth wave function and the physical 
+                location of the end of the last potential region, defaults 
+                to `self.region_end`. the last/nth wave function of this 
+                parameter will be set to the first/0th/zeroth wave function 
+                of `end`
+        return: name of "boundry set" (str) added and boundry set (dict)
+        rtype: tuple( str, dict )
+        """
+        start = not_none_value( start, self.region_start )
+        end = not_none_value( end, self.region_end )
+        psis = self.psis_to_functions() 
+        return self.boundries.add_boundries( 
+                TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_REPEATING_POTENTIALS_CONDITION, { 
+                        psis[ 0 ]( start ) : psis[ -1 ]( end ) 
+            } )
