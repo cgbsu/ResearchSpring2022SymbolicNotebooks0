@@ -194,7 +194,7 @@ class Boundries:
     def has_set( self, set_name ): 
         return set_name in self.boundries
     
-to_functions = lambda functions_with_parameters : ( function for function in functions_with_parameters )
+to_functions = lambda functions_with_parameters : tuple( function for function in functions_with_parameters )
 
 class TimeIndependentSchrodingerConstantPotentials1D( Symbols ): 
 
@@ -210,8 +210,8 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     def __init__( 
                 self, 
                 region_potential_table, 
-                region_end, 
-                region_start = 0, 
+                region_end = None, 
+                region_start = None, 
                 initial_boundries = None, 
                 repeating = False, 
                 inverse_repeating = False, 
@@ -228,7 +228,9 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 psi_parameter_based = None
             ): 
         self.region_potential_table = region_potential_table
-        self.repeating = repeating 
+        self.region_start = not_none_value( region_start, 0 )
+        self.region_end = not_none_value( region_end, tuple( region_potential_table.keys() )[ -1 ] )
+        self.repeating = repeating
         self.inverse_repeating = inverse_repeating 
         self.psi_function = psi_function 
         self.potential_function = potential_function 
@@ -242,12 +244,8 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         self.check_point_count = check_point_count
         self.psi_parameter_based = not_none_value( psi_parameter_based, self.make_psis == make_psi_parameter_constrained )
         self.psis = self.make_psis( self.psi_function, self.region_potential_table, self.position )
-        # This stepper will not be used for an equation, but for storing boundry conditions
-        # Simply wont call things that have left or right in their name, may need to make use 
-        # of some of the optional parameters and specify a couple of lambdas
         self.boundries = Boundries( initial_boundries )
-        region_psi_table = self.region_psi_table()
-        
+        region_psi_table = self.region_psi_table()        
         self.vanilla_schrodinger_equation_1d = \
                 Stepper( time_independent_schroedinger_equation_1d( 
                         self.psi_function, 
@@ -257,16 +255,16 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                         self.reduced_planck_constant, 
                         self.position
                     ) )
-
         self.equations = [
                 Stepper( self.vanilla_schrodinger_equation_1d.last_step() \
                         .subs( self.potential_function( self.position ), potential ) \
                         .replace( self.psi_function( self.position ), region_psi_table[ region ] ) ) \
                 for region, potential in self.region_potentials()
             ]
-        
         self.harmonic_constants = self._make_harmonic_constants()
         self._impose_continuity_conditions()
+        if repeating == True: 
+            self.impose_repeating_potentials_condition()
         
     def region_potentials( self ): 
         return table_to_pairs( self.region_potential_table )
@@ -344,6 +342,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         return self.harmonic_constants
     
     def psis_to_functions( self ): 
+        print( self.psis[ 0 ].args )
         return to_functions( self.psis )
     
     def impose_repeating_potentials_condition( self, start = None, end = None ): 
@@ -373,5 +372,5 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         psis = self.psis_to_functions() 
         return self.boundries.add_boundries( 
                 TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_REPEATING_POTENTIALS_CONDITION, { 
-                        psis[ 0 ]( start ) : psis[ -1 ]( end ) 
+                        psis[ 0 ].func( start ) : psis[ -1 ].func( end ) 
             } )
