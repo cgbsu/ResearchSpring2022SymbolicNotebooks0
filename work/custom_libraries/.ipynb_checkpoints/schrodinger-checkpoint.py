@@ -203,7 +203,6 @@ class Boundries:
         `True` for `allow_update` or `allow_reset` or specify new name
         """
         if not name_in_boundries or ( allow_reset and name_in_boundries ): 
-            print( "XXXYYYZZZ" )
             self.boundries[ name ] = {}
         assert not ( name_in_boundries and not allow_update ), """
         About to update boundry, when no update is allowed, to allow updates, please specify `allow_update` as `True`
@@ -256,8 +255,10 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     DEFAULT_CHECK_POINT_NAME_BASE = "TimeIndependentSchrodingerConstantPotentials1DCheckPoint"
     DEFAULT_CONSTANT_NAME_BASE = 'k'
     
-    CHECK_POINT_BEFORE_SOLVE_HARMONIC = "BeforeSolveHarmonic"
-    CHECK_POINT_SOLVED_HARMONIC = "SolveHarmonicSolved"
+    CHECK_POINT_BEFORE_SOLVE_HARMONIC_CONSTANT = "BeforeSolveHarmonicConstant"
+    CHECK_POINT_SOLVED_HARMONIC_CONSTANT = "SolveHarmonicConstantSolved"
+    CHECK_POINT_SUBSTITUTE_HARMONIC_CONSTANT = "SubstitutingHarmonicConstant"
+    CHECK_POINT_HARMONIC_SOLUTION_TO_CANONOCAL_FORM = "HarmonicSolutionToCanonicalForm"
 
     BOUNDRY_CONTINUITY_CONDITIONS = "ContinuityConditions"
     BOUNDRY_REPEATING_POTENTIALS_CONDITION = "RepeatingPotentialsCondition"
@@ -317,11 +318,19 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                         .replace( self.psi_function( self.position ), region_psi_table[ region ] ) ) \
                 for region, potential in self.region_potentials()
             ]
+        for psi in self.psis: 
+            self.add_symbol( psi )
         self.harmonic_constants = self._make_harmonic_constants()
         self._impose_continuity_conditions()
         if repeating == True: 
             self.impose_repeating_potentials_condition()
-        
+    
+    def regions( self ): 
+        return tuple( self.region_potential_table.keys() )
+    
+    def potentials( self ): 
+        return ( self.region_potential_table[ region ] for region in self.region_potential_table )
+    
     def region_potentials( self ): 
         return table_to_pairs( self.region_potential_table )
     
@@ -339,11 +348,11 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         name_base = not_none_value( name_base, self.constant_name_base )
         return name_base + '_' + str( equation_index )
     
-    def _make_harmonic_constant( self, equation_index : int, name_base = None ): 
+    def _make_harmonic_constant( self, equation_index : int, name_base = None, restore_before_checkpoint = False ): 
         equation = self.equations[ equation_index ]
         psi = self.psis[ equation_index ]
         before_check_point = self.check_point_name_base \
-                + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BEFORE_SOLVE_HARMONIC \
+                + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BEFORE_SOLVE_HARMONIC_CONSTANT \
                 + self._new_check_point_number()
         equation.check_point( before_check_point )
         psi_solution = sp.solve( equation.last_step(), psi )
@@ -358,10 +367,25 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         equation.right_to_constant( constant_name )
         equation.check_point( 
                 self.check_point_name_base \
-                    + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SOLVED_HARMONIC \
+                    + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SOLVED_HARMONIC_CONSTANT \
                     + self._new_check_point_number()
             )
-        equation.restore_from_check_point( before_check_point, True )
+        equation.substitute_constant( equation.constants_as_symbols().symbol_by_string_name( constant_name ) )
+        equation.check_point( 
+                self.check_point_name_base \
+                + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SUBSTITUTE_HARMONIC_CONSTANT \
+                + self._new_check_point_number()
+            )
+        equation **= 2
+        equation *= psi
+        equation -= equation.right()
+        equation.check_point( 
+                self.check_point_name_base \
+                + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_HARMONIC_SOLUTION_TO_CANONOCAL_FORM \
+                + self._new_check_point_number()
+            )
+        if restore_before_checkpoint: 
+            equation.restore_from_check_point( before_check_point, True )
         return equation.constant_symbols().symbol_by_string_name( constant_name )
     
     def _make_harmonic_constants( self, name_base = None ): 
@@ -429,3 +453,4 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_REPEATING_POTENTIALS_CONDITION, { 
                         psis[ 0 ].func( start ) : psis[ -1 ].func( end ) 
             } )
+    

@@ -269,13 +269,16 @@ class Stepper:
             in_constants = constant in self.constants
             if in_constants:
                 return self.operate( lambda step : 
-                        self._constant_substitution_operation( constant_substitute )( step, self.constants[ constant ] ), 
+                        self._constant_substitution_operation( constant_substitute )( 
+                                step, 
+                                self.constants[ constant ].last_step().reversed 
+                            ), 
                         chain = chain 
                     )
             else: 
                 assert in_constants if self.closed else True 
                 self.operate( lambda step : 
-                        self._constant_substitution_operation( constant_substitute )( step, constant ), 
+                        self._constant_substitution_operation( constant_substitute )( step, constant.reversed ), 
                         chain = chain 
                     ) 
     
