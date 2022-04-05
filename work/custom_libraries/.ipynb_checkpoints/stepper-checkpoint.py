@@ -31,7 +31,8 @@ def braces_paired(
     return unmatched_braces == 0
 
 class FunctionSymbol: 
-    def __init__( self, function_name, parameter_value_table = None ): 
+    def __init__( self, func, function_name, parameter_value_table = None ): 
+        self.func = func
         self.function_name = function_name
         self.parameter_value_table = parameter_value_table \
                 if type( parameter_value_table ) is dict \
@@ -100,11 +101,11 @@ class Symbols:
         if function_match == symbol: 
             symbol = str( original_symbol.func )
             if symbol_value == original_symbol: 
-                symbol_value = FunctionSymbol( symbol, original_symbol.args )
+                symbol_value = FunctionSymbol( original_symbol.func, symbol, original_symbol.args )
             elif type( symbol_value ) is dict: 
-                symbol_value = FunctionSymbol( symbol, symbol_value )
+                symbol_value = FunctionSymbol( original_symbol.func, symbol, symbol_value )
             else: 
-                symbol_value = FunctionSymbol( symbol, { original_symbol.args : symbol_value } )
+                symbol_value = FunctionSymbol( original_symbol.func, symbol, { original_symbol.args : symbol_value } )
             return symbol, symbol_value
         return None, None
     

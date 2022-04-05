@@ -64,13 +64,6 @@ class StairWell( sp.Function ):
         )
     NON_UNIFORM_STAIR_LENGTHS = sp.symbols( "L_0 L_1 L_2" )
     NON_UNIFORM_POTENTIALS = sp.symbols( "V_0 V_1 V_2" )
-    #NON_UNIFORM_ASSUMPTIONS = sp.Q.gt( NON_UNIFORM_POTENTIALS[ 0 ], NON_UNIFORM_POTENTIALS[ 1 ] ) \
-    #        & sp.Q.gt( NON_UNIFORM_POTENTIALS[ 1 ], NON_UNIFORM_POTENTIALS[ 2 ] ) \
-    #        & sp.Q.gt( NON_UNIFORM_STAIR_LENGTHS[ 0 ] + NON_UNIFORM_STAIR_LENGTHS[ 1 ], NON_UNIFORM_STAIR_LENGTHS[ 0 ] ) \
-    #        & sp.Q.gt( NON_UNIFORM_STAIR_LENGTHS[ 2 ] + NON_UNIFORM_STAIR_LENGTHS[ 1 ], NON_UNIFORM_STAIR_LENGTHS[ 2 ] )  
-    #DEFAULT_ASSUMPTIONS = NON_UNIFORM_ASSUMPTIONS \
-    #        & sp.Q.positive( UNIFORM_LENGTH_SYMBOL ) \
-    #        & sp.Q.positive( UNIFORM_POTENTIAL_SYMBOL )
     DEFAULT_START = 0
     
     def default_non_uniform_length_potential_table(): 
@@ -130,25 +123,19 @@ def make_psi_numbered_parameter_constrained( psi_function, region_potential_tabl
     regions = region_potential_table.keys()
     return [ psis[ ii ]( position < regions[ ii ] ) for ii in range( len( region_potential_table ) ) ]
 
-#class SystemSolver: 
-#    
-#    def __init__( self, conditions ): 
-#        self.conditions = conditions
-
 potential_none_to_list = lambda none_canidate : [] if none_canidate == None else none_canidate
 
 class Boundries: 
     """TODO: (Speculative)
         * : Add relations between objects in boundry, such as =, >, <, <=, >=, and, or, xor
         * : Make no "special" group, but make it be able to have groups of groups of groups for ex.
-        * : boundries_with method that can address boundry by reffering too an object in them, for 
-                instance my_boundries.boundries_with( "continunity_boundries", my_boundries.symbols().psi( x ) ) to return 
-                a list of boundries that contain psi( x ) (either as a key, value, or whatever it is stored in)
         * : More granular remove_boundries, possibly that can work with boundries_with
-        * : Somehow make boundries associative/communative
+        * : Somehow make boundries associative/communative <- sortof accomplished using append_boundries 
+                and update_all_boundry_conditions*
     """
     
     BOUNDRY_ALL = "LastUpdatedAllBoundryConditions"
+    BOUNDRY_QUERY_RESPONCE = "LastBoundryWithQueryResponce"
     
     def __init__( self, initial_boundries = None ): 
         self.boundries = not_none_value( initial_boundries, {} )
@@ -247,6 +234,20 @@ class Boundries:
             display( boundry_set )
             for boundry in self.boundries[ boundry_set ]: 
                 display( sp.Eq( boundry, self.boundries[ boundry_set ][ boundry ] ) )
+    
+    def boundries_with_in_set( self, set_name, query ): 
+        boundry_set = self.boundries[ set_name ]
+        result = {}
+        for key in boundry_set: 
+            value = boundry_set[ key ]
+            if key.has( query ) or value.has( query ): 
+                result[ key ] = value
+        return result
+    
+    def boundries_with( self, query, query_name = BOUNDRY_QUERY_RESPONCE ): 
+        self.update_all_boundry_conditions( query_name )
+        return self.boundries_with_in_set( query_name, query )
+                
 
 to_functions = lambda functions_with_parameters : tuple( function for function in functions_with_parameters )
 
