@@ -148,31 +148,80 @@ class Boundries:
         * : Somehow make boundries associative/communative
     """
     
+    BOUNDRY_ALL = "LastUpdatedAllBoundryConditions"
     
     def __init__( self, initial_boundries = None ): 
         self.boundries = not_none_value( initial_boundries, {} )
     
-    def add_boundries( self, set_name, boundries, automatically_append = False,  ): 
+    def add_boundries( self, set_name, boundries, automatically_append = False, append_override = False ): 
         set_name_in_boundries = set_name in self.boundries
         """Prevents overwriting boundries unless explicitly specified to do so.
         It is computed twice, but if the assertion is thrown, the client may see 
         the explicit problem."""
         assert True if automatically_append == True else not set_name_in_boundries, """
-                Attempt to set boundries when set already exists, set `automatically_append` to `True` or call `append_boundries` to append
+                Attempt to set boundries when set already exists, set `automatically_append` 
+                to `True` or call `append_boundries` to append
                 """
         if set_name_in_boundries == True and automatically_append == True: 
-            self.append_boundries( set_name, boundries )
+            self.append_boundries( set_name, boundries, append_override )
         elif set_name_in_boundries == False: 
             self.boundries[ set_name ] = boundries
             setattr( self, set_name, self.boundries[ set_name ] )
         else: 
-            assert set_name_in_boundries, ( "Attempt to overwrite existing boundries: " + set_name )
+            assert set_name_in_boundries, "Attempt to overwrite existing boundries: " + set_name
         return set_name, self.boundries[ set_name ]
     
-    def append_boundries( self, set_name, to_append ): 
-            self.boundries[ set_name ].update( boundries )
-            return set_name, self.boundries[ set_name ]
-        
+    def append_boundries( self, set_name, to_append, override = False ): 
+            boundries = self.boundries[ set_name ]
+            to_append_keys = tuple( to_append )
+            for key in to_append_keys: 
+                value = to_append[ key ]
+                if key in boundries: 
+                    if value == boundries[ key ]: 
+                        continue
+                    elif not ( value in boundries ): 
+                        boundries[ value ] = key
+                    elif override: 
+                        boundries[ key ] = value
+                    else: 
+                        assert key in boundries and ( not ( value in boundries ) ) and override
+                else: 
+                        boundries[ key ] = value
+            return set_name, boundries
+
+    def combind_boundry_conditions( self, first_set, second_set, new_name = None, allow_update = False, allow_reset = False ): 
+        first_set_is_string = type( first_set ) is str
+        second_set_is_string = type( second_set ) is str
+        passed_boundry_set = not ( first_set_is_string or second_set_is_string )
+        assert passed_boundry_set if new_name == None else True, """
+        If passing a boundry set, not the name of the boundry set, please specify a name of the resulting boundry_set
+        """
+        name = new_name if passed_boundry_set else new_name if new_name != None else first_set + second_set
+        name_in_boundries = name in self.boundries
+        assert name_in_boundries or new_name or allow_update or allow_reset, """
+        Name already in boundry set, either specify 
+        `True` for `allow_update` or `allow_reset` or specify new name
+        """
+        if not name_in_boundries or ( allow_reset and name_in_boundries ): 
+            print( "XXXYYYZZZ" )
+            self.boundries[ name ] = {}
+        assert not ( name_in_boundries and not allow_update ), """
+        About to update boundry, when no update is allowed, to allow updates, please specify `allow_update` as `True`
+        """
+        self.append_boundries( name, self.boundries[ first_set ] if first_set_is_string else first_set ), "first set", self.boundries[ first_set ]
+        return self.append_boundries( name, self.boundries[ second_set ] if second_set_is_string else second_set )
+    
+    def update_all_boundry_conditions( self, boundry_all_name = BOUNDRY_ALL, return_old = False ): 
+        old = {}
+        if boundry_all_name in self.boundries: 
+            old = self.boundries.pop( boundry_all_name )
+        boundry_keys = tuple( self.boundries.keys() )
+        self.boundries[ boundry_all_name ] = {}
+        for key in boundry_keys: 
+            if key != boundry_all_name: 
+                self.combind_boundry_conditions( boundry_all_name, key, boundry_all_name, True, False )
+        return self.boundries[ boundry_all_name ]
+    
     def remove_boundry_set( self, set_name ): 
         return set_name, self.boundries.pop( set_name )
     
@@ -194,6 +243,12 @@ class Boundries:
     def has_set( self, set_name ): 
         return set_name in self.boundries
     
+    def display( self ): 
+        for boundry_set in self.boundries: 
+            display( boundry_set )
+            for boundry in self.boundries[ boundry_set ]: 
+                display( sp.Eq( boundry, self.boundries[ boundry_set ][ boundry ] ) )
+
 to_functions = lambda functions_with_parameters : tuple( function for function in functions_with_parameters )
 
 class TimeIndependentSchrodingerConstantPotentials1D( Symbols ): 
@@ -206,7 +261,8 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
 
     BOUNDRY_CONTINUITY_CONDITIONS = "ContinuityConditions"
     BOUNDRY_REPEATING_POTENTIALS_CONDITION = "RepeatingPotentialsCondition"
-        
+    BOUNDRY_ALL = "LastUpdatedAllBoundryConditions"
+    
     def __init__( 
                 self, 
                 region_potential_table, 
@@ -342,7 +398,6 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         return self.harmonic_constants
     
     def psis_to_functions( self ): 
-        print( self.psis[ 0 ].args )
         return to_functions( self.psis )
     
     def impose_repeating_potentials_condition( self, start = None, end = None ): 
