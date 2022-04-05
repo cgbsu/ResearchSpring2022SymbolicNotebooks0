@@ -240,14 +240,15 @@ class Boundries:
         result = {}
         for key in boundry_set: 
             value = boundry_set[ key ]
-            if key.has( query ) or value.has( query ): 
+            if key.has( query ): 
                 result[ key ] = value
+            elif value.has( query ): 
+                result[ value ] = key
         return result
     
     def boundries_with( self, query, query_name = BOUNDRY_QUERY_RESPONCE ): 
         self.update_all_boundry_conditions( query_name )
-        return self.boundries_with_in_set( query_name, query )
-                
+        return self.boundries_with_in_set( query_name, query )                
 
 to_functions = lambda functions_with_parameters : tuple( function for function in functions_with_parameters )
 
