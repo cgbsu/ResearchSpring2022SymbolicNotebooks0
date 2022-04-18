@@ -288,6 +288,18 @@ class Stepper:
                         chain = chain 
                     ) 
     
+    def replace_with_constant( self, to_replace, constant_name, last_step = None, chain = False ): 
+        last_step = self.last_step( last_step )
+        replace_result = last_step.replace( to_replace, constant_name, map = True )
+        constant_name = sp.Symbol( str( constant_name ) )
+        assert not constant_name in self.constants.keys(), """Error, attempt add a constant with a name that already 
+        is entered""" + str( constant_name )
+        assert len( replace_result[ 1 ] ) > 0, """Error, attempt to perform replacement failed because the desired 
+        expression to replace with a constant does not exist!"""
+        self.constants[ constant_name ] = Stepper( sp.Eq( to_replace, constant_name ) )
+        self.add_step( replace_result[ 0 ] )
+        return self._return_chain( self.constants[ constant_name ], chain )
+    
     def constants_as_symbols( self, last_step = None ): 
         last_step = self.last_step( last_step )
         return Symbols( *tuple( self.constants.keys() ) )
@@ -300,7 +312,7 @@ class Stepper:
         return Symbols(
                 table = format_as( self.constants )
             )
-        
+    
     def symbols( self, last_step = None ): 
         last_step = self.last_step( last_step )
         symbol_list = list( last_step.atoms() ) + list( last_step.atoms( sp.Function ) )
@@ -355,6 +367,8 @@ class Stepper:
         return self._return_chain( self.assumptions, chain )
     
     def element_to_constant( self, element, constant_name = None, from_step = None, chain = False, get_element = None ): 
+        assert not constant_name in self.constants.keys(), """Error, attempt add a constant with a name that already 
+        is entered""" + str( constant_name )
         constant = sp.Symbol( self._default_constant_name( constant_name ) )
         self.constants[ constant ] = Stepper( sp.Eq( constant, self.retrieve_element( element, from_step, get_element ) ) )
         return self._return_chain( self.constants[ constant ], chain )
