@@ -110,6 +110,7 @@ class Symbols:
         return None, None
     
     def __init__( self, *symbols, table = None ): 
+        self.symbols = []
         if symbols or len( symbols ) > 0: 
             self.add_symbols( symbols )
         if table: 
@@ -140,6 +141,7 @@ class Symbols:
         else: 
             setattr( self, str( function_symbol ), function_symbol_value )
         setattr( self, str( symbol ), symbol_value )
+        self.symbols.append( symbol_value )
         return self
     
     def add_symbols( self, symbols ):
@@ -158,6 +160,8 @@ class Symbols:
                 sanitize = _sanitize 
             ): 
         return getattr( self, sanitize( str( symbol ) ) )
+
+equations_to_constant_table = lambda equations : { equation.lhs : Stepper( equation.reversed ) for equation in equations }
 
 class Stepper: 
 
@@ -197,6 +201,7 @@ class Stepper:
                 default_constant_name_base = DEFAULT_CONSTANT_NAME_BASE, 
                 default_checkpoint_name_base = DEFAULT_CHECKPOINT_NAME_BASE, 
                 default_assumptions = [], 
+                constants = None, 
                 closed = True
             ): 
         self.steps = new_steps if new_steps else []
@@ -207,7 +212,7 @@ class Stepper:
         self.get_element = get_element
         self.check_points = {}
         self.check_point_steps = {}
-        self.constants = {}
+        self.constants = not_none_value( constants, {} )
         self.default_constant_name_base = default_constant_name_base
         self.default_checkpoint_name_base = default_checkpoint_name_base
         self.assumptions = tuple( default_assumptions )

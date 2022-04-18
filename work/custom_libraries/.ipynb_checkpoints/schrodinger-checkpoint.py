@@ -2,6 +2,7 @@ import sympy as sp
 import sympy.physics.units.quantities as sq
 from sympy.physics.quantum.constants import hbar
 from custom_libraries.stepper import *
+import copy
 
 PSI_FUNCTION = sp.Function( "psi" )
 POTENTIAL_FUNCTION = sp.Function( "V" )
@@ -23,6 +24,35 @@ def time_independent_schroedinger_equation_1d(
                     + ( potential( position ) * psi( position ) ), 
             total_energy * psi( position ) 
         )
+
+DEFAULT_NORMALIZATION_VALUE = 1
+INDEFINITE_NORMALIZATION_INTEGRAL = None
+DEFAULT_CONJUGATE_NOT_SQUARED_ABSOLUTE_VALUE = True
+
+def simple_wave_function_normalization( 
+            from_, to_or_indefinite, 
+            psi = PSI_FUNCTION, 
+            position = POSITION_SYMBOL, 
+            normalization_value = DEFAULT_NORMALIZATION_VALUE, 
+            conjugate_not_squared_absolute_value 
+                    = DEFAULT_CONJUGATE_NOT_SQUARED_ABSOLUTE_VALUE 
+        ): 
+    integral_function = psi.func( position ) * sp.conjugate( psi.func( position ) ) \
+            if conjugate_not_squared_absolute_value \
+            else sp.Abs( psi.func( position ) ) ** 2
+    if to_or_indefinite: 
+        return sp.Eq( 
+                sp.Integral( 
+                        integral_function, 
+                        ( position, from_, to_or_indefinite ) 
+                    ),
+                normalization_value 
+            )
+    else:
+        return sp.Eq( 
+                sp.Integral( integral_function ),
+                normalization_value 
+            )
 
 class ZeroPotential( sp.Function ): 
     @classmethod
@@ -137,10 +167,40 @@ class Boundries:
     BOUNDRY_ALL = "LastUpdatedAllBoundryConditions"
     BOUNDRY_QUERY_RESPONCE = "LastBoundryWithQueryResponce"
     
+    INITIAL_COMMIT = "InitialCommit"
+    COMMIT = "Commit"
+    DEFAULT_ADD_BOUNDRIES_DEFAULT_COMMIT_PREFIX = "BeforeAdd"
+    DEFAULT_APPEND_BOUNDRIES_DEFAULT_COMMIT_PREFIX = "BeforeAPPEND"
+    DEFAULT_POST_ADD_BOUNDRIES_DEFAULT_COMMIT_PREFIX = "PostAdd"
+    DEFAULT_POST_APPEND_BOUNDRIES_DEFAULT_COMMIT_PREFIX = "PostAPPEND"
+
+    DEFAULT_REMOVE_SET_BOUNDRIES_DEFAULT_COMMIT_PREFIX = "BeforeRemoveSET"
+    DEFAULT_REMOVE_DEFAULT_COMMIT_PREFIX = "BeforeRemove"
+    DEFAULT_POST_REMOVE_SET_BOUNDRIES_DEFAULT_COMMIT_PREFIX = "PostRemoveSET"
+    DEFAULT_POST_REMOVE_DEFAULT_COMMIT_PREFIX = "PostRemove"
+    
+    DEFAULT_NO_COMMENT_COMMIT = "NoComment"
+
+    
     def __init__( self, initial_boundries = None ): 
         self.boundries = not_none_value( initial_boundries, {} )
+        self.log = [ ( copy.deepcopy( self.boundries ), Boundries.INITIAL_COMMIT ) ]
     
-    def add_boundries( self, set_name, boundries, automatically_append = False, append_override = False ): 
+    def commit( self, comment = None, prefix = None ): 
+        self.log.append( ( 
+                copy.deepcopy( self.boundries ), 
+                str( prefix if prefix else "" ) \
+                        + str( comment if comment else boundries.DEFAULT_NO_COMMENT_COMMIT ) \
+                        + Boundries.COMMIT 
+            ) )
+        return self.log[ -1 ]
+    
+    def commit_log( self ): 
+        return [ commit[ 1 ] for commit in self.log ]
+    
+    def add_boundries( self, set_name, boundries, automatically_append = False, append_override = False, 
+                before_commit_prefix = DEFAULT_ADD_BOUNDRIES_DEFAULT_COMMIT_PREFIX, 
+                post_commit_prefix = DEFAULT_POST_ADD_BOUNDRIES_DEFAULT_COMMIT_PREFIX ): 
         set_name_in_boundries = set_name in self.boundries
         """Prevents overwriting boundries unless explicitly specified to do so.
         It is computed twice, but if the assertion is thrown, the client may see 
@@ -152,13 +212,20 @@ class Boundries:
         if set_name_in_boundries == True and automatically_append == True: 
             self.append_boundries( set_name, boundries, append_override )
         elif set_name_in_boundries == False: 
+            self.commit( str( set_name ), before_commit_prefix )
             self.boundries[ set_name ] = boundries
             setattr( self, set_name, self.boundries[ set_name ] )
+            self.commit( str( set_name ), post_commit_prefix )
         else: 
             assert set_name_in_boundries, "Attempt to overwrite existing boundries: " + set_name
         return set_name, self.boundries[ set_name ]
     
-    def append_boundries( self, set_name, to_append, override = False ): 
+    def append_boundries( self, set_name, to_append, override = False, 
+                enable_logging = True, 
+                before_commit_prefix = DEFAULT_APPEND_BOUNDRIES_DEFAULT_COMMIT_PREFIX, 
+                post_commit_prefix = DEFAULT_POST_APPEND_BOUNDRIES_DEFAULT_COMMIT_PREFIX ): 
+            if enable_logging == True: 
+                self.commit( str( set_name ), before_commit_prefix )
             boundries = self.boundries[ set_name ]
             to_append_keys = tuple( to_append )
             for key in to_append_keys: 
@@ -174,9 +241,11 @@ class Boundries:
                         assert key in boundries and ( not ( value in boundries ) ) and override
                 else: 
                         boundries[ key ] = value
+            if enable_logging == True: 
+                self.commit( str( set_name ), post_commit_prefix )
             return set_name, boundries
 
-    def combind_boundry_conditions( self, first_set, second_set, new_name = None, allow_update = False, allow_reset = False ): 
+    def combind_boundry_conditions( self, first_set, second_set, new_name = None, allow_update = False, allow_reset = False, enable_logging = False ): 
         first_set_is_string = type( first_set ) is str
         second_set_is_string = type( second_set ) is str
         passed_boundry_set = not ( first_set_is_string or second_set_is_string )
@@ -194,8 +263,10 @@ class Boundries:
         assert not ( name_in_boundries and not allow_update ), """
         About to update boundry, when no update is allowed, to allow updates, please specify `allow_update` as `True`
         """
-        self.append_boundries( name, self.boundries[ first_set ] if first_set_is_string else first_set ), "first set", self.boundries[ first_set ]
-        return self.append_boundries( name, self.boundries[ second_set ] if second_set_is_string else second_set )
+        self.append_boundries( name, self.boundries[ first_set ] if first_set_is_string else first_set, 
+                enable_logging = enable_logging ), "first set", self.boundries[ first_set ]
+        return self.append_boundries( name, self.boundries[ second_set ] if second_set_is_string else second_set, 
+                enable_logging = enable_logging )
     
     def update_all_boundry_conditions( self, boundry_all_name = BOUNDRY_ALL, return_old = False ): 
         old = {}
@@ -205,25 +276,35 @@ class Boundries:
         self.boundries[ boundry_all_name ] = {}
         for key in boundry_keys: 
             if key != boundry_all_name: 
-                self.combind_boundry_conditions( boundry_all_name, key, boundry_all_name, True, False )
+                self.combind_boundry_conditions( boundry_all_name, key, boundry_all_name, True, False, False )
         return self.boundries[ boundry_all_name ]
     
-    def remove_boundry_set( self, set_name ): 
-        return set_name, self.boundries.pop( set_name )
+    def remove_boundry_set( self, set_name, 
+                pre_commit_prefix = DEFAULT_REMOVE_SET_BOUNDRIES_DEFAULT_COMMIT_PREFIX, 
+                post_commit_prefix = DEFAULT_POST_REMOVE_SET_BOUNDRIES_DEFAULT_COMMIT_PREFIX ): 
+        self.commit( str( set_name ), pre_commit_prefix )
+        return_data = set_name, self.boundries.pop( set_name )
+        self.commit( str( set_name ), post_commit_prefix )
+        return return_data
+
     
     def remove_boundries( 
                 self, 
                 set_name, 
                 keys : list, 
                 values : list, 
-                key_or_value : list 
+                key_or_value : list, 
+                pre_commit_prefix = DEFAULT_REMOVE_DEFAULT_COMMIT_PREFIX, 
+                post_commit_prefix = DEFAULT_POST_REMOVE_DEFAULT_COMMIT_PREFIX 
             ): 
+        self.commit( str( set_name ), pre_commit_prefix )
         removed = []
         boundry_set = self.boundries[ set_name ]
         keys = tuple( potential_none_to_list( keys ) + potential_none_to_list( key_or_value ) )
         removed = [ boundry_set.pop( key ) for key in keys ]
         values = tuple( potential_none_to_list( values ) + potential_none_to_list( key_or_value ) )
         removed = removed + [ boundry_set[ key ] for key in boundry_set.keys() if boundry_set[ key ] in values ]
+        self.commit( str( set_name ), post_commit_prefix )
         return set_name, removed
     
     def has_set( self, set_name ): 
@@ -261,10 +342,14 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     CHECK_POINT_SOLVED_HARMONIC_CONSTANT = "SolveHarmonicConstantSolved"
     CHECK_POINT_SUBSTITUTE_HARMONIC_CONSTANT = "SubstitutingHarmonicConstant"
     CHECK_POINT_HARMONIC_SOLUTION_TO_CANONOCAL_FORM = "HarmonicSolutionToCanonicalForm"
+    CHECK_POINT_SOLVERS_ODE_DSOLVE = "SolveODEsWithSolversOdeDsolve"
 
     BOUNDRY_CONTINUITY_CONDITIONS = "ContinuityConditions"
     BOUNDRY_REPEATING_POTENTIALS_CONDITION = "RepeatingPotentialsCondition"
     BOUNDRY_ALL = "LastUpdatedAllBoundryConditions"
+    
+    DEFAULT_NORMALIZATION_CONSTANT_BASE_NAME = 'N'
+    DEFAULT_TOTAL_NORMALIZATION_VALUE = 1 
     
     def __init__( 
                 self, 
@@ -283,9 +368,15 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 make_psis = make_psi_numbered, 
                 check_point_name_base = DEFAULT_CHECK_POINT_NAME_BASE, 
                 constant_name_base = DEFAULT_CONSTANT_NAME_BASE, 
-                check_point_count= 0, 
-                psi_parameter_based = None
+                check_point_count = 0, 
+                psi_parameter_based = None, 
+                create_normalization = simple_wave_function_normalization, 
+                normalization_conjugate_not_squared_absolute_value = DEFAULT_CONJUGATE_NOT_SQUARED_ABSOLUTE_VALUE, 
+                normaliation_constant_base_name = DEFAULT_NORMALIZATION_CONSTANT_BASE_NAME, 
+                create_constant_table = equations_to_constant_table, 
+                total_normalization_value = DEFAULT_TOTAL_NORMALIZATION_VALUE 
             ): 
+        super().__init__()
         self.region_potential_table = region_potential_table
         self.region_start = not_none_value( region_start, 0 )
         self.region_end = not_none_value( region_end, tuple( region_potential_table.keys() )[ -1 ] )
@@ -302,31 +393,71 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         self.constant_name_base = constant_name_base
         self.check_point_count = check_point_count
         self.psi_parameter_based = not_none_value( psi_parameter_based, self.make_psis == make_psi_parameter_constrained )
+        self. create_constant_table = create_constant_table
         self.psis = self.make_psis( self.psi_function, self.region_potential_table, self.position )
         self.boundries = Boundries( initial_boundries )
-        region_psi_table = self.region_psi_table()        
+        self.create_normalization = create_normalization 
+        self.normaliation_constant_base_name = normaliation_constant_base_name
+        self.normalization_conjugate_not_squared_absolute_value = normalization_conjugate_not_squared_absolute_value
+        self.total_normalization_value = total_normalization_value
+        self._create_schrodinger_equations()
+        self.harmonic_constants = self._make_harmonic_constants()
+        self._impose_continuity_conditions()
+        self._create_normalizations()
+        if repeating == True: 
+            self.impose_repeating_potentials_condition()
+    
+    def _create_schrodinger_equations( self ): 
+        region_psi_table = self.region_psi_table()
         self.vanilla_schrodinger_equation_1d = \
-                Stepper( time_independent_schroedinger_equation_1d( 
+                time_independent_schroedinger_equation_1d( 
                         self.psi_function, 
                         self.potential_function, 
                         self.total_energy, 
                         self.mass, 
                         self.reduced_planck_constant, 
                         self.position
-                    ) )
+                    )
         self.equations = [
-                Stepper( self.vanilla_schrodinger_equation_1d.last_step() \
+                Stepper( self.vanilla_schrodinger_equation_1d \
                         .subs( self.potential_function( self.position ), potential ) \
                         .replace( self.psi_function( self.position ), region_psi_table[ region ] ) ) \
                 for region, potential in self.region_potentials()
             ]
         for psi in self.psis: 
             self.add_symbol( psi )
-        self.harmonic_constants = self._make_harmonic_constants()
-        self._impose_continuity_conditions()
-        if repeating == True: 
-            self.impose_repeating_potentials_condition()
     
+    def _create_normalizations( self ): 
+        previous_from = self.region_start
+        regions = self.regions()
+        self.normalizations = []
+        self.normalization_symbols = []
+        #Yes, specifying the parameters makes this less customizable
+        for ii in range( len( self.equations ) ): 
+            self.normalization_symbols.append( 
+                    sp.Symbol( self.normaliation_constant_base_name + "_{" + str( ii ) + '}' )
+                )
+            self.add_symbol( self.normalization_symbols[ ii ] )
+            self.normalizations.append( self.create_normalization( 
+                        previous_from, regions[ ii ], 
+                        psi = self.psis[ ii ], 
+                        position = self.position, 
+                        normalization_value = self.normalization_symbols[ ii ], 
+                        conjugate_not_squared_absolute_value = \
+                                self.normalization_conjugate_not_squared_absolute_value
+                    ).reversed
+                )
+            previous_from = regions[ ii ]
+        self.total_normalization = Stepper( 
+                sp.Eq( 
+                        self.total_normalization_value, 
+                        sum( [ symbol for symbol in self.normalization_symbols ] ) 
+                    ), 
+                constants = self.create_constant_table( self.normalizations )
+            )
+        self.normalizations = [ self.total_normalization.constants[ constant ] 
+                               for constant in self.total_normalization.constants ]
+            
     def regions( self ): 
         return tuple( self.region_potential_table.keys() )
     
@@ -345,7 +476,15 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     def _new_check_point_number( self ): 
         self.check_point_count += 1
         return str( self.check_point_count - 1 )
-        
+    
+    def _equations_new_check_point( self, check_point ): 
+        for equation in self.equations: 
+            equation.check_point( 
+                    self.check_point_name_base \
+                            + check_point \
+                            + self._new_check_point_number() 
+                )
+    
     def _harmonic_constant_name( self, equation_index, name_base = None ): 
         name_base = not_none_value( name_base, self.constant_name_base )
         return name_base + '_' + str( equation_index )
@@ -426,6 +565,13 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     def psis_to_functions( self ): 
         return to_functions( self.psis )
     
+    def normalization_steppers( self ): 
+        return [ self.total_normalization.constants[ constant ] 
+                for constant in self.total_normalization.constants ]
+    
+    def normalization_constants( self ): 
+        return self.total_normalization.constants
+    
     def impose_repeating_potentials_condition( self, start = None, end = None ): 
         """Impose the assumption that the first wave function 
         of the first (zeroth/0th) region at `start` will 
@@ -455,4 +601,44 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_REPEATING_POTENTIALS_CONDITION, { 
                         psis[ 0 ].func( start ) : psis[ -1 ].func( end ) 
             } )
+    
+    def solve_odes( self ):
+        solutions = []
+        for ii in range( len( self.equations ) ): 
+            current_function = self.psis[ ii ]
+            boundries = self.boundries.boundries_with( current_function.func )
+            position = self.equations[ ii ].symbols().symbol_by_string_name( self.position )
+            solutions.append( sp.solvers.ode.dsolve( 
+                    self.equations[ ii ].last_step(), 
+                    current_function.func( position ), 
+                    ics = boundries
+                ) )
+            self.equations[ ii ].add_step( solutions[ ii ] )
+        self._equations_new_check_point( 
+                TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SOLVERS_ODE_DSOLVE 
+            )
+        return solutions
+    
+    def set_imposed_total_engineered_normalization_values( self, normalization_values : list ): 
+        """This is the "total" engineered normalization because it MUST be applied to ALL 
+        normalizations for ALL wave functions (this is for simplicity of implentation, 
+        possibly more comprehensive options in the future).
+        
+        Arguments: 
+        
+        normalization_values: a list of values from 0 - self.total_normalization_value (inclusive), where 
+                the sum of the list MUST be self.total_normalization_value (self.total_normalization_value representing 100%). 
+                These are the probabilities for each region that the particle will be found in the region. This does not shape the whole 
+                wave function, but it can be shaped by creating more regions."""
+        assert sum( normalization_values ) == self.total_normalization_value, """
+                Total probability of normalization values not equal to self.total_normalization_value!
+                See help( TimeIndependentSchrodingerConstantPotentials1D.set_imposed_total_engineered_normalization_values ) for details"""
+        assert len( normalization_values ) == len( self.psis ), """The number of wave functions does not match 
+                the number of normalization values! The method has a 1-to-1 correlation between the two, see 
+                See help( TimeIndependentSchrodingerConstantPotentials1D.set_imposed_total_engineered_normalization_values ) for details"""
+        for ii in range( len( normalization_values ) ): 
+            self.normalizations[ ii ].operate( lambda step : 
+                    step.subs( { self.normalization_symbols[ ii ] : normalizations_values[ ii ] } ) 
+                )
+        return self.normalizations
     
