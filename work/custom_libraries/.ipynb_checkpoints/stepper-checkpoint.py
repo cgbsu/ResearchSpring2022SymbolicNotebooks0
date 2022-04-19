@@ -2,6 +2,7 @@ import sympy as sp
 import sympy.physics.units.quantities as sq
 from sympy.physics.quantum.constants import hbar
 import re
+import copy
 
 set_equal = lambda to_set, value : sp.Eq( to_set, value )
 both_sides = lambda equation, operation : sp.Eq( operation( equation.lhs ), operation( equation.rhs ) )
@@ -202,7 +203,8 @@ class Stepper:
                 default_checkpoint_name_base = DEFAULT_CHECKPOINT_NAME_BASE, 
                 default_assumptions = [], 
                 constants = None, 
-                closed = True
+                closed = True, 
+                solution_sets = None 
             ): 
         self.steps = new_steps if new_steps else []
         self.steps.append( first_step )
@@ -217,6 +219,7 @@ class Stepper:
         self.default_checkpoint_name_base = default_checkpoint_name_base
         self.assumptions = tuple( default_assumptions )
         self.closed = closed
+        self.solution_sets = not_none_value( solution_sets, {} )
     
     def step_number( self, step = None ): 
         return ( len( self.steps ) - 1 ) if not step else step
@@ -261,6 +264,19 @@ class Stepper:
                 chain 
             )
     
+    def new_solution_set( self, solve_for, from_step ): 
+        assert not solve_for in self.solution_sets.keys(), """
+        Attempt to make a new solution set by the name of an existing solution set"""
+        self.solution_sets[ solve_for ] = [ self.clone( from_step ) ]
+    
+    def add_to_solution_set( self, solve_for, from_step ): 
+        self.solution_sets[ solve_for ].append( self.clone( from_step ) )
+    
+    # Not mutable
+    def to_solution( self, solve_for, from_step = None, other_equations = None ): 
+        last_step = self.last_step( from_step )
+        return sp.solve( not_none_value( other_equations, [] ) + [ last_step ], solve_for )
+    
     def clone( self, from_step = None ):
         return self.branch( lambda blank : blank, from_step )
     
@@ -269,6 +285,15 @@ class Stepper:
         return Stepper( 
                 self._apply_operation( apply )( self.last_step( from_step ), operation ), 
                 self.steps[ : self.step_number( from_step ) : ], 
+                self.apply, 
+                self.constant_substitution, 
+                self.get_element, 
+                self.default_constant_name_base, 
+                self.default_checkpoint_name_base, 
+                copy.deepcopy( self.assumptions ), 
+                copy.deepcopy( self.constants ), 
+                copy.deepcopy( self.closed ), 
+                copy.deepcopy( self.solution_sets )
             )
     
     def substitute_constant( self, constant, chain = False, constant_substitute = None ):

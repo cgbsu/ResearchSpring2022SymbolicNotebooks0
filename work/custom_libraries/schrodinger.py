@@ -277,7 +277,7 @@ class Boundries:
         for key in boundry_keys: 
             if key != boundry_all_name: 
                 self.combind_boundry_conditions( boundry_all_name, key, boundry_all_name, True, False, False )
-        return self.boundries[ boundry_all_name ]
+        return boundry_all_name, self.boundries[ boundry_all_name ]
     
     def remove_boundry_set( self, set_name, 
                 pre_commit_prefix = DEFAULT_REMOVE_SET_BOUNDRIES_DEFAULT_COMMIT_PREFIX, 
@@ -332,6 +332,7 @@ class Boundries:
         return self.boundries_with_in_set( query_name, query )                
 
 to_functions = lambda functions_with_parameters : tuple( function for function in functions_with_parameters )
+default_boundry_constant_name_base = lambda _ : "B"
 
 class TimeIndependentSchrodingerConstantPotentials1D( Symbols ): 
 
@@ -343,13 +344,21 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     CHECK_POINT_SUBSTITUTE_HARMONIC_CONSTANT = "SubstitutingHarmonicConstant"
     CHECK_POINT_HARMONIC_SOLUTION_TO_CANONOCAL_FORM = "HarmonicSolutionToCanonicalForm"
     CHECK_POINT_SOLVERS_ODE_DSOLVE = "SolveODEsWithSolversOdeDsolve"
+    CHECK_POINT_BOUNDRY_TO_CONSTANT_SUBSTITUTION = "BoundryToConstantSubstitution"
+    CHECK_POINT_SUBSTUTE_WAVE_FUNCTIONS_INTO_NORMALIATIONS = "SubstituteWaveFunctionsIntoNormalizations"
 
     BOUNDRY_CONTINUITY_CONDITIONS = "ContinuityConditions"
     BOUNDRY_REPEATING_POTENTIALS_CONDITION = "RepeatingPotentialsCondition"
     BOUNDRY_ALL = "LastUpdatedAllBoundryConditions"
+    BOUNDRY_CONSTANT_SUBSTITUTIONS = "ConstantSubstitutions"
+    BOUNDRY_BOUNDRY_SIMPLIFICATION_TABLE = "BoundrySimplificationTable"
+    BOUNDRY_BOUNDRY_CONSTANT_TABLE = "BoundryConstantTable"
     
     DEFAULT_NORMALIZATION_CONSTANT_BASE_NAME = 'N'
     DEFAULT_TOTAL_NORMALIZATION_VALUE = 1 
+    
+    COMMIT_CHECK_POINT_PREFIX_BEFORE = "Before"
+    COMMIT_CHECK_POINT_PREFIX_POST = "Post"
     
     def __init__( 
                 self, 
@@ -374,7 +383,8 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 normalization_conjugate_not_squared_absolute_value = DEFAULT_CONJUGATE_NOT_SQUARED_ABSOLUTE_VALUE, 
                 normaliation_constant_base_name = DEFAULT_NORMALIZATION_CONSTANT_BASE_NAME, 
                 create_constant_table = equations_to_constant_table, 
-                total_normalization_value = DEFAULT_TOTAL_NORMALIZATION_VALUE 
+                total_normalization_value = DEFAULT_TOTAL_NORMALIZATION_VALUE, 
+                create_boundry_constant_name_base = default_boundry_constant_name_base
             ): 
         super().__init__()
         self.region_potential_table = region_potential_table
@@ -393,17 +403,20 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         self.constant_name_base = constant_name_base
         self.check_point_count = check_point_count
         self.psi_parameter_based = not_none_value( psi_parameter_based, self.make_psis == make_psi_parameter_constrained )
-        self. create_constant_table = create_constant_table
+        self.create_constant_table = create_constant_table
         self.psis = self.make_psis( self.psi_function, self.region_potential_table, self.position )
         self.boundries = Boundries( initial_boundries )
         self.create_normalization = create_normalization 
         self.normaliation_constant_base_name = normaliation_constant_base_name
         self.normalization_conjugate_not_squared_absolute_value = normalization_conjugate_not_squared_absolute_value
         self.total_normalization_value = total_normalization_value
+        self.create_boundry_constant_name_base = create_boundry_constant_name_base
+        self.boundry_constant_symbols = []
+        self.normalizations = []
         self._create_schrodinger_equations()
+        self._create_normalizations()
         self.harmonic_constants = self._make_harmonic_constants()
         self._impose_continuity_conditions()
-        self._create_normalizations()
         if repeating == True: 
             self.impose_repeating_potentials_condition()
     
@@ -430,7 +443,6 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     def _create_normalizations( self ): 
         previous_from = self.region_start
         regions = self.regions()
-        self.normalizations = []
         self.normalization_symbols = []
         #Yes, specifying the parameters makes this less customizable
         for ii in range( len( self.equations ) ): 
@@ -478,12 +490,15 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         return str( self.check_point_count - 1 )
     
     def _equations_new_check_point( self, check_point ): 
-        for equation in self.equations: 
-            equation.check_point( 
-                    self.check_point_name_base \
-                            + check_point \
-                            + self._new_check_point_number() 
-                )
+        check_point_number = self._new_check_point_number()
+        make_check_point = lambda equation : equation.check_point( 
+                self.check_point_name_base \
+                        + check_point \
+                        + check_point_number 
+            )
+        for ii in range( len( self.equations ) ): 
+            make_check_point( self.equations[ ii ] )
+            make_check_point( self.normalizations[ ii ] )
     
     def _harmonic_constant_name( self, equation_index, name_base = None ): 
         name_base = not_none_value( name_base, self.constant_name_base )
@@ -492,10 +507,9 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     def _make_harmonic_constant( self, equation_index : int, name_base = None, restore_before_checkpoint = False ): 
         equation = self.equations[ equation_index ]
         psi = self.psis[ equation_index ]
-        before_check_point = self.check_point_name_base \
-                + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BEFORE_SOLVE_HARMONIC_CONSTANT \
-                + self._new_check_point_number()
-        equation.check_point( before_check_point )
+        self._equations_new_check_point( 
+                TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BEFORE_SOLVE_HARMONIC_CONSTANT 
+            )
         psi_solution = sp.solve( equation.last_step(), psi )
         psi_solution = psi_solution[ 0 ] if type( psi_solution ) is list else psi_solution
         equation.add_step( sp.Eq( psi, psi_solution ) )
@@ -506,24 +520,18 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         equation.root( 2 )
         constant_name = self._harmonic_constant_name( equation_index, name_base )
         equation.right_to_constant( constant_name )
-        equation.check_point( 
-                self.check_point_name_base \
-                    + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SOLVED_HARMONIC_CONSTANT \
-                    + self._new_check_point_number()
+        self._equations_new_check_point( 
+                TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SOLVED_HARMONIC_CONSTANT 
             )
         equation.substitute_constant( equation.constants_as_symbols().symbol_by_string_name( constant_name ) )
-        equation.check_point( 
-                self.check_point_name_base \
-                + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SUBSTITUTE_HARMONIC_CONSTANT \
-                + self._new_check_point_number()
+        self._equations_new_check_point( 
+                TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SUBSTITUTE_HARMONIC_CONSTANT 
             )
         equation **= 2
         equation *= psi
         equation -= equation.right()
-        equation.check_point( 
-                self.check_point_name_base \
-                + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_HARMONIC_SOLUTION_TO_CANONOCAL_FORM \
-                + self._new_check_point_number()
+        self._equations_new_check_point( 
+                TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_HARMONIC_SOLUTION_TO_CANONOCAL_FORM 
             )
         if restore_before_checkpoint: 
             equation.restore_from_check_point( before_check_point, True )
@@ -602,7 +610,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                         psis[ 0 ].func( start ) : psis[ -1 ].func( end ) 
             } )
     
-    def solve_odes( self ):
+    def solve_odes( self, input_into_normalizations = False ):
         solutions = []
         for ii in range( len( self.equations ) ): 
             current_function = self.psis[ ii ]
@@ -617,6 +625,8 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         self._equations_new_check_point( 
                 TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SOLVERS_ODE_DSOLVE 
             )
+        if input_into_normalizations == True: 
+            self.substitute_wave_functions_into_normalizations()
         return solutions
     
     def set_imposed_total_engineered_normalization_values( self, normalization_values : list ): 
@@ -641,4 +651,75 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                     step.subs( { self.normalization_symbols[ ii ] : normalizations_values[ ii ] } ) 
                 )
         return self.normalizations
+
+    def boundries_in_expression_to_constants( 
+                self, 
+                automatically_append = True,  
+                simplifcication_table_name = BOUNDRY_BOUNDRY_SIMPLIFICATION_TABLE, 
+                constant_table_name = BOUNDRY_BOUNDRY_CONSTANT_TABLE, 
+                before_prefix = COMMIT_CHECK_POINT_PREFIX_BEFORE, 
+                after_prefix = COMMIT_CHECK_POINT_PREFIX_POST
+            ):
+        """Dont change the dafaults after `automatically_append`, they are just there to make the code cleaner really"""
+        original_boundry_set_name, boundry_simplification_list = self.boundries.update_all_boundry_conditions()
+        boundry_constant_base_name = self.create_boundry_constant_name_base( original_boundry_set_name )
+        self.boundries.commit( simplifcication_table_name, before_prefix )
+        self.boundries.add_boundries( 
+                simplifcication_table_name, 
+                boundry_simplification_list, 
+                automatically_append = automatically_append
+            )
+        boundry_number = 0
+        constant_substitution_table = {}
+        for key in self.boundries.boundries[ simplifcication_table_name ]: 
+            constant_substitution_table[ boundry_simplification_list[ key ] ] = \
+                    sp.Symbol( boundry_constant_base_name + "_{" + str( boundry_number ) + '}' )
+            boundry_number += 1
+        self.boundries.commit( constant_table_name, before_prefix )
+        self._equations_new_check_point( 
+                before_prefix + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BOUNDRY_TO_CONSTANT_SUBSTITUTION
+            )
+        self.boundries.add_boundries( 
+                constant_table_name, 
+                constant_substitution_table, 
+                automatically_append = automatically_append 
+            )
+        self.boundries.commit( constant_table_name, after_prefix )
+        self.boundry_constant_symbols = []
+        for ii in range( len( self.equations ) ): 
+            self.equations[ ii ] \
+                    .operate( lambda step : step.subs( boundry_simplification_list ), chain = True )
+            self.normalizations[ ii ] \
+                    .operate( lambda step : step.subs( boundry_simplification_list ), chain = True )
+        for key in constant_substitution_table: 
+            constant = constant_substitution_table[ key ]
+            self.boundry_constant_symbols.append( constant )
+            for ii in range( len( self.equations ) ): 
+                try: 
+                    self.equations[ ii ].replace_with_constant( key, constant )
+                except Exception: 
+                    pass
+                try: 
+                    self.normalizations[ ii ].replace_with_constant( key, constant )
+                except Exception: 
+                    pass
+        self._equations_new_check_point( 
+                after_prefix + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BOUNDRY_TO_CONSTANT_SUBSTITUTION
+            )
+        return self.equations, self.normalizations
     
+    def substitute_wave_functions_into_normalizations( 
+                self, 
+                before_prefix = COMMIT_CHECK_POINT_PREFIX_BEFORE, 
+                after_prefix = COMMIT_CHECK_POINT_PREFIX_POST
+            ): 
+        self._equations_new_check_point( 
+                before_prefix + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SUBSTUTE_WAVE_FUNCTIONS_INTO_NORMALIATIONS 
+            )
+        subtitution_table = { equation.last_step().lhs : equation.last_step().rhs for equation in self.equations }
+        for normalization in self.normalizations: 
+            normalization.operate( lambda step : step.subs( subtitution_table ) )
+        self._equations_new_check_point( 
+                after_prefix + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SUBSTUTE_WAVE_FUNCTIONS_INTO_NORMALIATIONS 
+            )
+        return self.normalizations
