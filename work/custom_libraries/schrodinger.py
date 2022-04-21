@@ -771,18 +771,35 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                                       # lengths are real/finite and harmonic constants 
                                       # is real. 
             ): 
-        solved_for = []
+        solved_for = {}
         self.solved_boundries = []
+        def debug( sols ): 
+            if sols != None: 
+                print( "I have sols!" )
+            else: 
+                print( "NO SOLS!!" )
+            if type( sols ) is dict: 
+                for key in sols: 
+                    display( key )
+                    display( sols[ key ] )
+            elif type( sols ) is list: 
+                for sol in sols: 
+                    display( sol )
+            else: 
+                display( sols )
+        
         self._equation_new_check_point( equation, TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_INTEGRATE_NORMALIZATION )
         if self.normalizations.index( equation ) >= 0 and auto_integrate == True: 
             equation.operate( lambda step : step.expand().doit() )
         for boundry in self.boundry_constant_symbols: 
             if equation.last_step().has( boundry ): 
+                boundry_solution = []
                 solutions = sp.solve( equation.last_step(), boundry )
+                debug( solutions )
                 if solutions == None: 
                     continue
                 if is_type_len_gt_0( list, solutions ): 
-                    solved_for += self.add_constant_solutions( 
+                    boundry_solution += self.add_constant_solutions( 
                             equation, 
                             boundry, 
                             solutions, 
@@ -790,7 +807,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                             transform 
                         )
                 elif is_type_len_gt_0( dict, solutions ): 
-                    solved_for += non_list_to_list( enter_lists_dict_of_list( 
+                    boundry_solution += non_list_to_list( enter_lists_dict_of_list( 
                             self.constant_solutions, 
                             solutions, 
                             transform = transform
@@ -802,7 +819,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                                 transform = transform 
                             )
                 else: 
-                    solved_for += non_list_to_list( enter_dict_of_list( 
+                    boundry_solution += non_list_to_list( enter_dict_of_list( 
                             self.constant_solutions, 
                             boundry, 
                             solutions, 
@@ -814,6 +831,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                                 automatically_make_new_solution_sets = True, 
                                 transform = transform 
                             )
+                enter_dict_of_list( solved_for, boundry, boundry_solution )
             return solved_for
                     
         #self.boundries.boundries[ TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_BOUNDRY_CONSTANT_TABLE ]
