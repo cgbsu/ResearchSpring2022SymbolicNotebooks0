@@ -735,8 +735,6 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
             )
         return self.equations, self.normalizations
     
-    
-    
     def substitute_wave_functions_into_normalizations( 
                 self, 
                 before_prefix = COMMIT_CHECK_POINT_PREFIX_BEFORE, 
@@ -752,3 +750,15 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 after_prefix + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SUBSTUTE_WAVE_FUNCTIONS_INTO_NORMALIATIONS 
             )
         return self.normalizations
+    
+    # Probably can solve for constants from solving the differential equation later as well. #
+    def solve_boundry_constants_from_equation( self, equation ): 
+        self.solved_boundries = []
+        #while len( self.solved_boundries ) < len( self.boundry_constant_symbols ): 
+        if equation in self.normalizations: 
+            equation.operate( lambda step : step.expand().doit() )
+        for boundry in self.boundry_constant_symbols: 
+            if boundry in equation: 
+                
+        #self.boundries.boundries[ TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_BOUNDRY_CONSTANT_TABLE ]
+    
