@@ -334,6 +334,8 @@ class Boundries:
 to_functions = lambda functions_with_parameters : tuple( function for function in functions_with_parameters )
 default_boundry_constant_name_base = lambda _ : "B"
 
+standard_harmonic_assumptions = lambda equation : { 'real' : True, 'finite' : True, 'nonzero' : True }
+
 class TimeIndependentSchrodingerConstantPotentials1D( Symbols ): 
 
     DEFAULT_CHECK_POINT_NAME_BASE = "TimeIndependentSchrodingerConstantPotentials1DCheckPoint"
@@ -384,7 +386,9 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 normaliation_constant_base_name = DEFAULT_NORMALIZATION_CONSTANT_BASE_NAME, 
                 create_constant_table = equations_to_constant_table, 
                 total_normalization_value = DEFAULT_TOTAL_NORMALIZATION_VALUE, 
-                create_boundry_constant_name_base = default_boundry_constant_name_base
+                create_boundry_constant_name_base = default_boundry_constant_name_base, 
+                as_distances = False, 
+                harmonics_assumptions = standard_harmonic_assumptions, 
             ): 
         super().__init__()
         self.region_potential_table = region_potential_table
@@ -412,7 +416,10 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         self.total_normalization_value = total_normalization_value
         self.create_boundry_constant_name_base = create_boundry_constant_name_base
         self.boundry_constant_symbols = []
+        self.distance_constant_symbols = []
         self.normalizations = []
+        self.harmonics_assumptions = harmonics_assumptions
+        self.as_distances = as_distances
         self._create_schrodinger_equations()
         self._create_normalizations()
         self.harmonic_constants = self._make_harmonic_constants()
@@ -451,7 +458,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 )
             self.add_symbol( self.normalization_symbols[ ii ] )
             self.normalizations.append( self.create_normalization( 
-                        previous_from, regions[ ii ], 
+                        0 if self.as_distances else previous_from, regions[ ii ], 
                         psi = self.psis[ ii ], 
                         position = self.position, 
                         normalization_value = self.normalization_symbols[ ii ], 
@@ -519,7 +526,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         equation **= ( -1 )
         equation.root( 2 )
         constant_name = self._harmonic_constant_name( equation_index, name_base )
-        equation.right_to_constant( constant_name )
+        equation.right_to_constant( constant_name, assumptions = self.harmonics_assumptions( equation_index ) )
         self._equations_new_check_point( 
                 TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_SOLVED_HARMONIC_CONSTANT 
             )
@@ -562,7 +569,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         length = len( self.psis )
         return self.boundries.add_boundries( 
                 TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_CONTINUITY_CONDITIONS, {
-                        self.psis[ ii ].func( regions[ ii ] ) : self.psis[ ii + 1 ].func( regions[ ii ] )
+                        self.psis[ ii ].func( regions[ ii ] ) : self.psis[ ii + 1 ].func( 0 if self.as_distances else regions[ ii ] )
                                 for ii in range( length ) if ( ii + 1 ) < length
             } )
 
@@ -707,6 +714,8 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 after_prefix + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BOUNDRY_TO_CONSTANT_SUBSTITUTION
             )
         return self.equations, self.normalizations
+    
+    
     
     def substitute_wave_functions_into_normalizations( 
                 self, 

@@ -391,18 +391,19 @@ class Stepper:
         self.assumptions = tuple( list( self.assumptions ) + [ assumption ] )
         return self._return_chain( self.assumptions, chain )
     
-    def element_to_constant( self, element, constant_name = None, from_step = None, chain = False, get_element = None ): 
+    def element_to_constant( self, element, constant_name = None, from_step = None, chain = False, get_element = None, assumptions = None ): 
         assert not constant_name in self.constants.keys(), """Error, attempt add a constant with a name that already 
         is entered""" + str( constant_name )
-        constant = sp.Symbol( self._default_constant_name( constant_name ) )
+        assumptions = not_none_value( assumptions, {} )
+        constant = sp.Symbol( self._default_constant_name( constant_name ), **assumptions )
         self.constants[ constant ] = Stepper( sp.Eq( constant, self.retrieve_element( element, from_step, get_element ) ) )
         return self._return_chain( self.constants[ constant ], chain )
 
-    def left_to_constant( self, constant_name = None, from_step = None, chain = False, get_element = None ): 
-        return self.element_to_constant( Stepper.LEFT, constant_name, from_step, chain, get_element )
+    def left_to_constant( self, constant_name = None, from_step = None, chain = False, get_element = None, assumptions = None ): 
+        return self.element_to_constant( Stepper.LEFT, constant_name, from_step, chain, get_element, assumptions )
 
-    def right_to_constant( self, constant_name = None, from_step = None, chain = False, get_element = None ): 
-        return self.element_to_constant( Stepper.RIGHT, constant_name, from_step, chain, get_element )
+    def right_to_constant( self, constant_name = None, from_step = None, chain = False, get_element = None, assumptions = None ): 
+        return self.element_to_constant( Stepper.RIGHT, constant_name, from_step, chain, get_element, assumptions )
     
     def check_point( self, name_or_marker = None, from_step = None, chain = False ): 
         checkpoint_name = self._default_check_point_name( name_or_marker )
