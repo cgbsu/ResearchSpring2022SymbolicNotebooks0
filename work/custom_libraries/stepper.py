@@ -264,13 +264,16 @@ class Stepper:
                 chain 
             )
     
-    def new_solution_set( self, solve_for, from_step ): 
-        assert not solve_for in self.solution_sets.keys(), """
-        Attempt to make a new solution set by the name of an existing solution set"""
+    def new_solution_set( self, solve_for, from_step = None, enable_overwrite = False ): 
+        assert enable_overwrite if solve_for in self.solution_sets else True, f"""Error: Attempt to 
+        overwrite existing solution set, `{str( solve_for )}`, if this is intentional, please 
+        set the keyword argument `enable_overwrite` to `True` when calling `Stepper.add_to_solution_set`"""
         self.solution_sets[ solve_for ] = [ self.clone( from_step ) ]
+        return self.solution_sets[ solve_for ]
     
-    def add_to_solution_set( self, solve_for, from_step ): 
+    def add_to_solution_set( self, solve_for, from_step = None ): 
         self.solution_sets[ solve_for ].append( self.clone( from_step ) )
+        return self.solution_sets[ solve_for ]
     
     # Not mutable
     def to_solution( self, solve_for, from_step = None, other_equations = None ): 

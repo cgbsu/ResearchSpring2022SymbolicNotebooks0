@@ -80,8 +80,8 @@ class TunnelPotential( sp.Function ):
         return Potential.eval( position, potential )
 
 class StairWell( sp.Function ): 
-    UNIFORM_LENGTH_SYMBOL = sp.Symbol( 'L' )
-    UNIFORM_POTENTIAL_SYMBOL = sp.Symbol( 'V' )
+    UNIFORM_LENGTH_SYMBOL = sp.Symbol( 'L', real = True, finite = True, nonzero = True )
+    UNIFORM_POTENTIAL_SYMBOL = sp.Symbol( 'V', real = True, finite = True, nonzero = True )
     UNIFORM_STAIR_LENGTHS = ( 
             UNIFORM_LENGTH_SYMBOL, 
             UNIFORM_LENGTH_SYMBOL, 
@@ -92,8 +92,8 @@ class StairWell( sp.Function ):
             2 * UNIFORM_POTENTIAL_SYMBOL / 3, 
             UNIFORM_POTENTIAL_SYMBOL / 3
         )
-    NON_UNIFORM_STAIR_LENGTHS = sp.symbols( "L_0 L_1 L_2" )
-    NON_UNIFORM_POTENTIALS = sp.symbols( "V_0 V_1 V_2" )
+    NON_UNIFORM_STAIR_LENGTHS = sp.symbols( "L_0 L_1 L_2", real = True, finite = True, nonzero = True )
+    NON_UNIFORM_POTENTIALS = sp.symbols( "V_0 V_1 V_2", real = True, finite = True, nonzero = True )
     DEFAULT_START = 0
     
     def default_non_uniform_length_potential_table(): 
@@ -334,7 +334,18 @@ class Boundries:
 to_functions = lambda functions_with_parameters : tuple( function for function in functions_with_parameters )
 default_boundry_constant_name_base = lambda _ : "B"
 
-standard_harmonic_assumptions = lambda equation : { 'real' : True, 'finite' : True, 'nonzero' : True }
+standard_harmonic_assumptions = lambda equation : { 'finite' : True, 'nonzero' : True }
+
+region_warning = lambda region : f"""Error: {region} is a symbol that does not have 
+                    the property of being in the set of real numbers ("Real"), this can lead to normalizations 
+                    getting quite complicated. You may make `{region}` Real by setting the real property to 
+                    'True' in Symbol's constructor, e.g {region} = sympy.Symbol( "L_{0}", real = True ). If 
+                    you know what your doing do not want to assume that your {region} is real, please set 
+                    `ensure_lengths_are_real` to False"""
+
+def warn_about_region( region_key, region ): 
+    assert region_key.assumptions0[ 'real' ] == True if type( region_key ) is sp.Symbol else True, region_warning( region )
+
 
 class TimeIndependentSchrodingerConstantPotentials1D( Symbols ): 
 
@@ -361,6 +372,9 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     
     COMMIT_CHECK_POINT_PREFIX_BEFORE = "Before"
     COMMIT_CHECK_POINT_PREFIX_POST = "Post"
+    
+    
+    
     
     def __init__( 
                 self, 
@@ -389,11 +403,17 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 create_boundry_constant_name_base = default_boundry_constant_name_base, 
                 as_distances = False, 
                 harmonics_assumptions = standard_harmonic_assumptions, 
+                ensure_lengths_are_real = True, 
             ): 
         super().__init__()
         self.region_potential_table = region_potential_table
         self.region_start = not_none_value( region_start, 0 )
         self.region_end = not_none_value( region_end, tuple( region_potential_table.keys() )[ -1 ] )
+        if ensure_lengths_are_real: 
+            warn_about_region( self.region_start, "region_start" )
+            warn_about_region( self.region_end, "region_end" )
+            for region in self.region_potential_table: 
+                warn_about_region( self.region_start, f"region_potential_table_key({region})" )
         self.repeating = repeating
         self.inverse_repeating = inverse_repeating 
         self.psi_function = psi_function 
