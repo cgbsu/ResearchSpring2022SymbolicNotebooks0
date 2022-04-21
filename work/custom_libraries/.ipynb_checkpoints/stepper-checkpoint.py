@@ -18,6 +18,48 @@ def display_in( iterable ):
     for ii in iterable: 
         display( ii )
 
+transform_noop = lambda key, value : value
+
+def set_key_to_equation( key, value ): 
+    check_point = "set_key_to_equation : " + str( key ) + " : " + str( value )
+    if check_point in value.check_points: 
+        check_point += "#"
+    value.check_point( "Before:" + check_point )
+    value.add_step( sp.Eq( value.last_step(), key ) )
+    value.check_point( "After:" + check_point )
+    return value
+
+def key_value_to_stepper( key, value, fix_stepper_equations = None, fix_sympy_equations = None, fix_type = sp.Eq ): 
+    if type( value ) is Stepper: 
+        if type( value.last_step() ) is fix_type: 
+            return value
+        elif fix_stepper_equations: 
+            return fix_equations( key, value )
+        return value
+    elif type( value ) is fix_type: 
+        if key == value.rhs or key == value.lhs: 
+            return Stepper( value )
+        elif fix_sympy_equations: 
+            return Stepper( fix_sympy_equations( key, value ) )
+    else: 
+        return Stepper( value )
+            
+
+def append_list_in_dict_of_list( table : dict, key, value, transform = transform_noop ): 
+        if type( value ) is list: 
+            return table[ key ] + [ transform( key, current_value ) for current_value in value ]
+        else: 
+            return table[ key ].append( transform( key, value ) )
+
+def enter_dict_of_list( table : dict, key, value, transform = transform_noop ): 
+        if not key in table: 
+            table[ key ] = [ transform( key, current_value ) for current_value in value ]
+            return table[ key ]
+        else: 
+            return append_list_in_dict_of_list( table, key, value, transform )
+
+def enter_lists_dict_of_list( table : dict, new_table : dict, enter = enter_dict_of_list, transform = transform_noop ): 
+    return { key : enter( table, key, new_table[ key ], transform ) for key in new_table }
 
 def braces_paired( 
             text, 
@@ -271,9 +313,24 @@ class Stepper:
         self.solution_sets[ solve_for ] = [ self.clone( from_step ) ]
         return self.solution_sets[ solve_for ]
     
-    def add_to_solution_set( self, solve_for, from_step = None ): 
-        self.solution_sets[ solve_for ].append( self.clone( from_step ) )
-        return self.solution_sets[ solve_for ]
+    def append_solutions_to_sets( self, 
+                solve_for = None, 
+                solutions = None, 
+                from_step = None, 
+                automatically_make_new_solution_sets = False, 
+                transform = None
+            ): 
+        enter = enter_dict_of_list if automatically_make_new_solution_sets else append_list_in_dict_of_list
+        solutions = not_none_value( solutions, self.clone( from_step ) )
+        assert solve_for or solutions, """Error: In order to run `Stepper.append_solutions_to_sets` you must specify 
+                the `solve_for` and/or `solutions` parameter. If `solve_for` is not specified and `solutions` is not a `dict` 
+                I dont know where to put solutions, and I cant append a default value to a set. If `solutions` and `solve_for` are 
+                not specified I dont know what to do!"""
+        if type( solutions ) == dict: 
+            return enter_lists_dict_of_list( self.solution_sets, solutions, enter )
+        assert solve_for, """Error: If you specify `solutions` (not as a dict { constant : solution }) 
+                and not what `solve_for` in `Stepper.append_solutions_to_sets` I dont know where to put the solution!"""
+        return enter( self.solution_sets, solve_for, solutions )
     
     # Not mutable
     def to_solution( self, solve_for, from_step = None, other_equations = None ): 

@@ -331,6 +331,10 @@ class Boundries:
         self.update_all_boundry_conditions( query_name )
         return self.boundries_with_in_set( query_name, query )                
 
+non_list_to_list = lambda canidate : canidate if type( canidate ) is list else [ canidate ]
+is_type_len_gt_0 = lambda type_, canidate : len( canidate ) > 0 if type( canidate ) is type_ else False
+
+
 to_functions = lambda functions_with_parameters : tuple( function for function in functions_with_parameters )
 default_boundry_constant_name_base = lambda _ : "B"
 
@@ -346,7 +350,6 @@ region_warning = lambda region : f"""Error: {region} is a symbol that does not h
 def warn_about_region( region_key, region ): 
     assert region_key.assumptions0[ 'real' ] == True if type( region_key ) is sp.Symbol else True, region_warning( region )
 
-
 class TimeIndependentSchrodingerConstantPotentials1D( Symbols ): 
 
     DEFAULT_CHECK_POINT_NAME_BASE = "TimeIndependentSchrodingerConstantPotentials1DCheckPoint"
@@ -359,6 +362,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     CHECK_POINT_SOLVERS_ODE_DSOLVE = "SolveODEsWithSolversOdeDsolve"
     CHECK_POINT_BOUNDRY_TO_CONSTANT_SUBSTITUTION = "BoundryToConstantSubstitution"
     CHECK_POINT_SUBSTUTE_WAVE_FUNCTIONS_INTO_NORMALIATIONS = "SubstituteWaveFunctionsIntoNormalizations"
+    CHECK_POINT_INTEGRATE_NORMALIZATION = "IntegrateNormalization"
 
     BOUNDRY_CONTINUITY_CONDITIONS = "ContinuityConditions"
     BOUNDRY_REPEATING_POTENTIALS_CONDITION = "RepeatingPotentialsCondition"
@@ -438,6 +442,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         self.boundry_constant_symbols = []
         self.distance_constant_symbols = []
         self.normalizations = []
+        self.constant_solutions = {}
         self.harmonics_assumptions = harmonics_assumptions
         self.as_distances = as_distances
         self._create_schrodinger_equations()
@@ -516,16 +521,19 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         self.check_point_count += 1
         return str( self.check_point_count - 1 )
     
-    def _equations_new_check_point( self, check_point ): 
-        check_point_number = self._new_check_point_number()
-        make_check_point = lambda equation : equation.check_point( 
+    def _equation_new_check_point( self, equation, check_point, check_point_number = None): 
+        check_point_number = not_none_value( check_point_number, self._new_check_point_number() )
+        return equation.check_point( 
                 self.check_point_name_base \
                         + check_point \
                         + check_point_number 
             )
+    
+    def _equations_new_check_point( self, check_point, check_point_number = None ): 
+        check_point_number = not_none_value( check_point_number, self._new_check_point_number() )
         for ii in range( len( self.equations ) ): 
-            make_check_point( self.equations[ ii ] )
-            make_check_point( self.normalizations[ ii ] )
+            self._equation_new_check_point( self.equations[ ii ], check_point, check_point_number )
+            self._equation_new_check_point( self.normalizations[ ii ], check_point, check_point_number )
     
     def _harmonic_constant_name( self, equation_index, name_base = None ): 
         name_base = not_none_value( name_base, self.constant_name_base )
@@ -752,13 +760,99 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         return self.normalizations
     
     # Probably can solve for constants from solving the differential equation later as well. #
-    def solve_boundry_constants_from_equation( self, equation ): 
+    def solve_boundry_constants_from_equation( 
+                self, 
+                equation, 
+                assume_2_solutions_squared_absolute_value = False, 
+                transform = key_value_to_stepper, 
+                auto_integrate = True # If you dont do this, 
+                                      # it can take a long time to 
+                                      # solve or even crash this is tested when 
+                                      # lengths are real/finite and harmonic constants 
+                                      # is real. 
+            ): 
+        solved_for = []
         self.solved_boundries = []
-        #while len( self.solved_boundries ) < len( self.boundry_constant_symbols ): 
-        if equation in self.normalizations: 
+        self._equation_new_check_point( equation, TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_INTEGRATE_NORMALIZATION )
+        if self.normalizations.index( equation ) >= 0 and auto_integrate == True: 
             equation.operate( lambda step : step.expand().doit() )
         for boundry in self.boundry_constant_symbols: 
-            if boundry in equation: 
-                
+            if equation.last_step().has( boundry ): 
+                solutions = sp.solve( equation.last_step(), boundry )
+                if solutions == None: 
+                    continue
+                if is_type_len_gt_0( list, solutions ): 
+                    solved_for += self.add_constant_solutions( 
+                            equation, 
+                            boundry, 
+                            solutions, 
+                            assume_2_solutions_squared_absolute_value, 
+                            transform 
+                        )
+                elif is_type_len_gt_0( dict, solutions ): 
+                    solved_for += non_list_to_list( enter_lists_dict_of_list( 
+                            self.constant_solutions, 
+                            solutions, 
+                            transform = transform
+                        ) )
+                    equation.append_solutions_to_sets( 
+                                solve_for = boundry, 
+                                solutions = solutions, 
+                                automatically_make_new_solution_sets = True, 
+                                transform = transform 
+                            )
+                else: 
+                    solved_for += non_list_to_list( enter_dict_of_list( 
+                            self.constant_solutions, 
+                            boundry, 
+                            solutions, 
+                            transform 
+                        ) )
+                    equation.append_solutions_to_sets( 
+                                solve_for = boundry, 
+                                solutions = solutions, 
+                                automatically_make_new_solution_sets = True, 
+                                transform = transform 
+                            )
+            return solved_for
+                    
         #self.boundries.boundries[ TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_BOUNDRY_CONSTANT_TABLE ]
-    
+
+    def add_constant_solutions( 
+                    self, 
+                    equation, 
+                    constant_symbol, 
+                    solutions, 
+                    assume_2_solutions_squared_absolute_value = False, 
+                    transform = key_value_to_stepper
+                ): 
+            entered = non_list_to_list( enter_dict_of_list( 
+                    self.constant_solutions, 
+                    constant_symbol, 
+                    solutions, 
+                    transform = transform 
+                ) )
+            equation.append_solutions_to_sets( 
+                        solve_for = constant_symbol, 
+                        solutions = solutions, 
+                        automatically_make_new_solution_sets = True, 
+                        transform = transform 
+                    )
+            if len( solutions ) == 2 and assume_2_solutions_squared_absolute_value == True: 
+                last_step = lambda step : step.last_step() if type( step ) is Stepper else step
+                boundry_squared = sp.Abs( boundry ) ** 2
+                entered.append( boundry_squared )
+                boundry_squared_solution = ( last_step( solution[ 0 ] ) * last_step( solution[ 1 ] ) ).simplify() 
+                equation.append_solutions_to_sets( 
+                            solve_for = boundry_squared, 
+                            solutions = boundry_squared_solution, 
+                            automatically_make_new_solution_sets = True, 
+                            transform = transform 
+                        )
+                entered += non_list_to_list( enter_dict_of_list( 
+                        self.constant_solutions, 
+                        boundry_squared, 
+                        boundry_squared_solution, 
+                        transform = transform 
+                    ) )
+            return entered
