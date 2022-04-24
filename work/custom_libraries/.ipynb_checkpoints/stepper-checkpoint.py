@@ -465,11 +465,11 @@ class Stepper:
     def right_to_constant( self, constant_name = None, from_step = None, chain = False, get_element = None, assumptions = None ): 
         return self.element_to_constant( Stepper.RIGHT, constant_name, from_step, chain, get_element, assumptions )
     
-    def check_point( self, name_or_marker = None, from_step = None, chain = False ): 
+    def check_point( self, name_or_marker = None, from_step = None, chain = False, pass_check_point_name = False ): 
         checkpoint_name = self._default_check_point_name( name_or_marker )
         self.check_points[ checkpoint_name ] = self.last_step( from_step )
         self.check_point_steps[ checkpoint_name ] = self.steps.index( self.last_step( from_step ) )
-        return self._return_chain( self.check_points[ checkpoint_name ], chain )
+        return self._return_chain( checkpoint_name if pass_check_point_name else self.check_points[ checkpoint_name ], chain )
     
     def restore_from_check_point( self, name_or_marker, add_not_undo = True, chain = False ): 
         assert name_or_marker in self.check_points

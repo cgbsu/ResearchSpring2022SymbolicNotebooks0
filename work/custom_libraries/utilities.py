@@ -1,17 +1,17 @@
 import sympy as sp
 
-def make_constant( expression, constant_name_base, constants ): 
-        constant = sp.Symbol( str( constant_name_base ) + "_{" + str( len( constants ) ) + '}' )
+def make_constant( expression, constant_name_base, constants, assumptions = { 'real' : True, 'finite' : True, 'nonzero' : True } ): 
+        constant = sp.Symbol( str( constant_name_base ) + "_{" + str( len( constants ) ) + '}', **assumptions )
         if expression in constants: 
             constant = constants[ expression ]
         constants[ expression ] = constant
         return constant, True
 
-def bubble_constants( expression, free_variables : list, constant_name_base : str, constants : dict, tabs = 0, debug = False ): 
+def bubble_constants( expression, free_variables : list, constant_name_base : str, constants : dict, tabs = 0, debug = False, assumptions = { 'real' : True, 'finite' : True } ): 
     is_atom = type( expression ) is sp.Symbol
     is_communative = expression.is_commutative
     if not getattr( expression, 'has' ): 
-        return make_constant( expression, constant_name_base, constants )
+        return make_constant( expression, constant_name_base, constants, assumptions )
     if expression.has( *tuple( free_variables ) ) and not is_atom: 
         substitution_table = {}
         new_expression = expression
@@ -27,7 +27,8 @@ def bubble_constants( expression, free_variables : list, constant_name_base : st
             new_constant = make_constant( 
                     type( expression )( *tuple( replacable ) ), 
                     constant_name_base, 
-                    constants 
+                    constants, 
+                    assumptions 
                 )[ 0 ]
             new_arguments.append( new_constant )
         return type( expression )( *tuple( new_arguments ) ), True
@@ -36,13 +37,14 @@ def bubble_constants( expression, free_variables : list, constant_name_base : st
     elif is_atom: 
         return expression, True
     else: 
-        return make_constant( expression, constant_name_base, constants )
+        return make_constant( expression, constant_name_base, constants, assumptions )
 
-def group_constants( expression, free_variables : list, constant_name_base : str = 'S' ): 
+def group_constants( expression, free_variables : list, constant_name_base : str = 'S', assumptions = { 'real' : True, 'finite' : True } ): 
     constants = {}
     return bubble_constants( 
                     expression, 
                     free_variables, 
                     constant_name_base, 
-                    constants 
+                    constants, 
+                    assumptions = assumptions
                 )[ 0 ], constants

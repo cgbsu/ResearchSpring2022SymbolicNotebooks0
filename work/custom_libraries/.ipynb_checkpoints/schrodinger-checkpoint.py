@@ -320,14 +320,30 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         return equation.check_point( 
                 self.check_point_name_base \
                         + check_point \
-                        + check_point_number 
+                        + str( check_point_number ) 
             )
     
     def _equations_new_check_point( self, check_point, check_point_number = None ): 
         check_point_number = not_none_value( check_point_number, self._new_check_point_number() )
+        check_point_names = [ [], [] ]
         for ii in range( len( self.equations ) ): 
-            self._equation_new_check_point( self.equations[ ii ], check_point, check_point_number )
-            self._equation_new_check_point( self.normalizations[ ii ], check_point, check_point_number )
+            check_point_names[ 0 ].append( 
+                        self._equation_new_check_point( 
+                                self.equations[ ii ], 
+                                check_point, 
+                                check_point_number, 
+                                checkpoint_name = True 
+                            )
+                    )
+            check_point_names[ 1 ].append( 
+                    self._equation_new_check_point( 
+                            self.normalizations[ ii ], 
+                            check_point, 
+                            check_point_number, 
+                            checkpoint_name = True 
+                        )
+                )
+        return check_point_names
     
     def _harmonic_constant_name( self, equation_index, name_base = None ): 
         name_base = not_none_value( name_base, self.constant_name_base )
@@ -523,13 +539,17 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 automatically_append = automatically_append
             )
         boundry_number = 0
-        constant_substitution_table = {}
+        constant_substitution_table = getattr( self.boundries, constant_table_name ) \
+                if hasattr( self.boundries, constant_table_name ) else {}
         for key in self.boundries.boundries[ simplifcication_table_name ]: 
-            constant_substitution_table[ boundry_simplification_list[ key ] ] = \
-                    sp.Symbol( boundry_constant_base_name + "_{" + str( boundry_number ) + '}' )
-            boundry_number += 1
+            new_substitution_key = boundry_simplification_list[ key ]
+            if not new_substitution_key in constant_substitution_table: 
+                constant_substitution_table[ new_substitution_key ] = \
+                        sp.Symbol( boundry_constant_base_name + "_{" + str( boundry_number ) + '}' )
+                boundry_number += 1
         self.boundries.commit( constant_table_name, before_prefix )
-        self._equations_new_check_point( 
+        check_points = {}
+        check_points[ before_prefix ] = self._equations_new_check_point( 
                 before_prefix + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BOUNDRY_TO_CONSTANT_SUBSTITUTION
             )
         self.boundries.add_boundries( 
@@ -560,10 +580,30 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                         self.normalizations[ ii ].replace_with_constant( key, constant )
                     except Exception: 
                         pass
-        self._equations_new_check_point( 
+        check_points[ after_prefix ] = self._equations_new_check_point( 
                 after_prefix + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BOUNDRY_TO_CONSTANT_SUBSTITUTION
             )
-        return self.equations, self.normalizations
+        return self.equations, self.normalizations, check_points
+    
+    def make_substitution_solution( self, position, other_key = None ): 
+        to_replace = not_none_value( other_key, self.position )
+        substitutions = [ [], [] ]
+        for ii in range( len( self.equations ) ): 
+            substitutions[ 0 ].append( 
+                    self.equations[ ii ].append_solutions_to_sets( 
+                            solve_for = { to_replace : position }, 
+                            solutions = step.subs( { to_replace : position } ), 
+                            automatically_make_new_solution_sets = True
+                        ) 
+                )
+            substitutions[ 1 ].append( 
+                    self.normalizations[ ii ].append_solutions_to_sets( 
+                            solve_for = { to_replace : position }, 
+                            solutions = step.subs( { to_replace : position } ), 
+                            automatically_make_new_solution_sets = True
+                        ) 
+                )
+        return substitutions
     
     def substitute_wave_functions_into_normalizations( 
                 self, 
