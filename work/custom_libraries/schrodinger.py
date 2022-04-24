@@ -510,7 +510,8 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 simplifcication_table_name = BOUNDRY_BOUNDRY_SIMPLIFICATION_TABLE, 
                 constant_table_name = BOUNDRY_BOUNDRY_CONSTANT_TABLE, 
                 before_prefix = COMMIT_CHECK_POINT_PREFIX_BEFORE, 
-                after_prefix = COMMIT_CHECK_POINT_PREFIX_POST
+                after_prefix = COMMIT_CHECK_POINT_PREFIX_POST, 
+                exclude_substituting_numbers = True 
             ):
         """Dont change the dafaults after `automatically_append`, they are just there to make the code cleaner really"""
         original_boundry_set_name, boundry_simplification_list = self.boundries.update_all_boundry_conditions()
@@ -547,14 +548,18 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
             constant = constant_substitution_table[ key ]
             self.boundry_constant_symbols.append( constant )
             for ii in range( len( self.equations ) ): 
-                try: 
-                    self.equations[ ii ].replace_with_constant( key, constant )
-                except Exception: 
-                    pass
-                try: 
-                    self.normalizations[ ii ].replace_with_constant( key, constant )
-                except Exception: 
-                    pass
+                is_number = type( key ) is int \
+                        or type( key ) is float \
+                        or ( key.is_Number if hasattr( key, 'is_Number' ) else False )                
+                if ( is_number == False ) if exclude_substituting_numbers else True: 
+                    try: 
+                        self.equations[ ii ].replace_with_constant( key, constant )
+                    except Exception: 
+                        pass
+                    try: 
+                        self.normalizations[ ii ].replace_with_constant( key, constant )
+                    except Exception: 
+                        pass
         self._equations_new_check_point( 
                 after_prefix + TimeIndependentSchrodingerConstantPotentials1D.CHECK_POINT_BOUNDRY_TO_CONSTANT_SUBSTITUTION
             )
