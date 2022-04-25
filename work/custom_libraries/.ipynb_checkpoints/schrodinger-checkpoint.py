@@ -315,34 +315,29 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         self.check_point_count += 1
         return str( self.check_point_count - 1 )
     
-    def _equation_new_check_point( self, equation, check_point, check_point_number = None): 
+    def _equation_new_check_point( self, equation, check_point, check_point_number = None, pass_check_point_name = False ): 
         check_point_number = not_none_value( check_point_number, self._new_check_point_number() )
         return equation.check_point( 
                 self.check_point_name_base \
                         + check_point \
-                        + str( check_point_number ) 
+                        + str( check_point_number ), 
+                pass_check_point_name = pass_check_point_name 
             )
     
     def _equations_new_check_point( self, check_point, check_point_number = None ): 
         check_point_number = not_none_value( check_point_number, self._new_check_point_number() )
         check_point_names = [ [], [] ]
-        for ii in range( len( self.equations ) ): 
-            check_point_names[ 0 ].append( 
+        new_check_point = lambda equation, index : check_point_names[ index ].append( 
                         self._equation_new_check_point( 
-                                self.equations[ ii ], 
+                                equation, 
                                 check_point, 
                                 check_point_number, 
-                                checkpoint_name = True 
+                                pass_check_point_name = True 
                             )
                     )
-            check_point_names[ 1 ].append( 
-                    self._equation_new_check_point( 
-                            self.normalizations[ ii ], 
-                            check_point, 
-                            check_point_number, 
-                            checkpoint_name = True 
-                        )
-                )
+        for ii in range( len( self.equations ) ): 
+            new_check_point( self.equations[ ii ], 0 )
+            new_check_point( self.normalizations[ ii ], 1 )
         return check_point_names
     
     def _harmonic_constant_name( self, equation_index, name_base = None ): 
@@ -522,6 +517,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
 
     def boundries_in_expression_to_constants( 
                 self, 
+                equation = None, 
                 automatically_append = True,  
                 simplifcication_table_name = BOUNDRY_BOUNDRY_SIMPLIFICATION_TABLE, 
                 constant_table_name = BOUNDRY_BOUNDRY_CONSTANT_TABLE, 
@@ -561,7 +557,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         self.boundry_constant_symbols = []
         for ii in range( len( self.equations ) ): 
             self.equations[ ii ] \
-                    .operate( lambda step : step.subs( boundry_simplification_list ), chain = True )
+                    .operate( lambda step : step.subs( boundry_simplification_list ), chain = True ).last_step()
             self.normalizations[ ii ] \
                     .operate( lambda step : step.subs( boundry_simplification_list ), chain = True )
         for key in constant_substitution_table: 
@@ -585,24 +581,42 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
             )
         return self.equations, self.normalizations, check_points
     
-    def make_substitution_solution( self, position, other_key = None ): 
+    def make_substitution_solution( 
+                self, 
+                position, 
+                other_key = None, 
+                before_prefix = COMMIT_CHECK_POINT_PREFIX_BEFORE, 
+                after_prefix = COMMIT_CHECK_POINT_PREFIX_POST 
+            ): 
         to_replace = not_none_value( other_key, self.position )
         substitutions = [ [], [] ]
+        def substitute( equation ): 
+                equation.operate( lambda step : step.subs( { to_replace : position } ) )
+        def to_solution( equation ): 
+                print( type( equation.last_step() ) )
+                if type( equation.last_step() ) is sp.Eq: 
+                    return equation.append_solutions_to_sets( 
+                            solve_for = str( { to_replace : position } ), 
+                            solutions = [ equation.last_step() ], 
+                            automatically_make_new_solution_sets = True
+                        )
+                return []
+        check_points = {}
+        check_points[ before_prefix ] = self._equations_new_check_point( 
+                before_prefix + "Sub" + str( to_replace ) + ':' + str( position )
+            )
         for ii in range( len( self.equations ) ): 
-            substitutions[ 0 ].append( 
-                    self.equations[ ii ].append_solutions_to_sets( 
-                            solve_for = { to_replace : position }, 
-                            solutions = step.subs( { to_replace : position } ), 
-                            automatically_make_new_solution_sets = True
-                        ) 
-                )
-            substitutions[ 1 ].append( 
-                    self.normalizations[ ii ].append_solutions_to_sets( 
-                            solve_for = { to_replace : position }, 
-                            solutions = step.subs( { to_replace : position } ), 
-                            automatically_make_new_solution_sets = True
-                        ) 
-                )
+            substitute( self.equations[ ii ] )
+            substitute( self.normalizations[ ii ] )
+        self.boundries_in_expression_to_constants()
+        check_points[ after_prefix ] = self._equations_new_check_point( 
+                after_prefix + "Sub" + str( to_replace ) + ':' + str( position )
+            )
+        for ii in range( len( self.equations ) ): 
+            substitutions[ 0 ] += to_solution( self.equations[ ii ] )
+            self.equations[ ii ].restore_from_check_point( check_points[ before_prefix ][ 0 ][ ii ] )
+            substitutions[ 1 ] += to_solution( self.normalizations[ ii ] )
+            self.normalizations[ ii ].restore_from_check_point( check_points[ before_prefix ][ 1 ][ ii ] )
         return substitutions
     
     def substitute_wave_functions_into_normalizations( 
