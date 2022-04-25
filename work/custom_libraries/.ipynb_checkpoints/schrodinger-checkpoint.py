@@ -583,11 +583,12 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     
     def make_substitution_solution( 
                 self, 
-                position, 
+                position = None, 
                 other_key = None, 
                 before_prefix = COMMIT_CHECK_POINT_PREFIX_BEFORE, 
                 after_prefix = COMMIT_CHECK_POINT_PREFIX_POST 
             ): 
+        substitute_regions = position == None
         to_replace = not_none_value( other_key, self.position )
         substitutions = [ [], [] ]
         def substitute( equation ): 
@@ -606,6 +607,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
                 before_prefix + "Sub" + str( to_replace ) + ':' + str( position )
             )
         for ii in range( len( self.equations ) ): 
+            position = self.regions()[ ii ] if substitute_regions else position
             substitute( self.equations[ ii ] )
             substitute( self.normalizations[ ii ] )
         self.boundries_in_expression_to_constants()
