@@ -273,7 +273,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
         #Yes, specifying the parameters makes this less customizable
         for ii in range( len( self.equations ) ): 
             self.normalization_symbols.append( 
-                    sp.Symbol( self.normaliation_constant_base_name + "_{" + str( ii ) + '}' )
+                    sp.Symbol( self.normaliation_constant_base_name + "_" + str( ii ) )#+ '}' )
                 )
             self.add_symbol( self.normalization_symbols[ ii ] )
             self.normalizations.append( self.create_normalization( 
