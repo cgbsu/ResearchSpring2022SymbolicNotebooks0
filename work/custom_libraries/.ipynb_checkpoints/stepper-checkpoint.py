@@ -4,11 +4,7 @@ from sympy.physics.quantum.constants import hbar
 import re
 import copy
 
-set_equal = lambda to_set, value : sp.Eq( to_set, value )
-both_sides = lambda equation, operation : sp.Eq( operation( equation.lhs ), operation( equation.rhs ) )
-equation_to_dict = lambda equation : { equation.lhs : equation.rhs }
-
-not_none_value = lambda value, default : value if value != None else default
+from custom_libraries.utilities import *
 
 def display_steps( steppers, step = None ): 
     for stepper in steppers: 
