@@ -2,6 +2,7 @@ import sympy as sp
 
 set_equal = lambda to_set, value : sp.Eq( to_set, value )
 both_sides = lambda equation, operation : sp.Eq( operation( equation.lhs ), operation( equation.rhs ) )
+both_sides_no_evaluation = lambda equation, operation : sp.Eq( operation( equation.lhs ), operation( equation.rhs ), evaluate = False )
 equation_to_dict = lambda equation : { equation.lhs : equation.rhs }
 
 not_none_value = lambda value, default : value if value != None else default
