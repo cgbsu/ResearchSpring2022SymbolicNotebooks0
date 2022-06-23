@@ -9,6 +9,8 @@ not_none_value = lambda value, default : value if value != None else default
 
 default_format_constant_group_constants = lambda constant_name_base, constants : str( constant_name_base ) + "_{" + str( len( constants ) ) + '}'
 
+flip_dictonary = lambda dictonary : { dictonary[ key ] : key for key in dictonary }
+
 def make_constant( 
                 expression, 
                 constant_name_base, 
@@ -90,3 +92,9 @@ def group_constants(
                     assumptions, 
                     format_constant, 
                 )[ 0 ], constants
+
+def ungroup_constants( expression, constants ): 
+    flipped = flip_dictonary( constants )
+    while expression.has( *tuple( flipped.keys() ) ) == True:
+        expression = expression.subs( flipped )
+    return expression
