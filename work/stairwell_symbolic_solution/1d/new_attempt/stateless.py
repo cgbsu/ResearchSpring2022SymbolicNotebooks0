@@ -19,25 +19,40 @@ def makeDistance(region):
 def makeStartDistance(region): 
     return 0 if region == 0 else sp.Symbol(f'L_{region - 1}', positive = True, real = True)
 
+def makeFromToSymbol(baseName, index): 
+    return {
+            "next" : sp.Symbol(f"{baseName}_{index}_{index + 1}"), 
+            "previous" : sp.Symbol(f"{baseName}_{index}_{index - 1}")
+        }
+
+class NextPrevious: 
+    def __init__(self, transmissionCoefficent, reflectionCoefficient): 
+        self.transmissionCoefficent = transmissionCoefficent
+        self.reflectionCoefficient = reflectionCoefficient
+
 class RegionSymbols: 
-    def __init__(self, regionNumber): 
-        self.regionNumber = regionNumber
-        self.waveFunction = sp.Function(f'\psi_{self.regionNumber}')
+    def __init__(self, regionIndex): 
+        self.regionIndex = regionIndex
+        self.waveFunction = sp.Function(f'\psi_{self.regionIndex}')
         self.constants = [
-                sp.Symbol('C_{{' + str(self.regionNumber) + '}_t}'), 
-                sp.Symbol('C_{{' + str(self.regionNumber) + '}_r}')
+                sp.Symbol('C_{{' + str(self.regionIndex) + '}_t}'), 
+                sp.Symbol('C_{{' + str(self.regionIndex) + '}_r}')
             ]
-        self.distance = makeDistance(self.regionNumber)
-        self.harmonicConstant = sp.Symbol(f'k_{self.regionNumber}', real = True)
-        self.boundry = sp.Symbol(f'B_{self.regionNumber}')
-        self.normalizationConstant = sp.Symbol(f'N_{self.regionNumber}')
+        self.distance = makeDistance(self.regionIndex)
+        self.harmonicConstant = sp.Symbol(f'k_{self.regionIndex}', real = True)
+        self.boundry = sp.Symbol(f'B_{self.regionIndex}')
+        self.normalizationConstant = sp.Symbol(f'N_{self.regionIndex}')
         self.partSummeries = [
-                sp.Function('\psi_{{' + str(self.regionNumber) + '}_t}'), 
-                sp.Function('\psi_{{' + str(self.regionNumber) + '}_r}')
+                sp.Function('\psi_{{' + str(self.regionIndex) + '}_t}'), 
+                sp.Function('\psi_{{' + str(self.regionIndex) + '}_r}')
             ]
         self.mass = sq.Quantity('m', positive = True, nonzero = True)
-        self.constantPotential = sp.Symbol(f'V_{self.regionNumber}', positive = True, real = True)
-        self.startDistance = makeStartDistance(self.regionNumber)
+        self.constantPotential = sp.Symbol(f'V_{self.regionIndex}', positive = True, real = True)
+        self.startDistance = makeStartDistance(self.regionIndex)
+        self.transmissionCoefficents = makeFromToSymbol("T", self.regionIndex)
+        self.reflectionCoefficents = makeFromToSymbol("R", self.regionIndex)
+        self.next = NextPrevious(self.transmissionCoefficents["next"], self.reflectionCoefficents["next"])
+        self.previous = NextPrevious(self.transmissionCoefficents["previous"], self.reflectionCoefficents["previous"])
 
 def makeCoefficents(first, second): 
     transmission = (sp.Abs(second.constants[0]) ** 2) / (sp.Abs(first.constants[0]) ** 2)
@@ -58,18 +73,19 @@ def removeAbs(toRemoveFrom):
     return toRemoveFrom.replace(sp.Abs(wild), wild)
 
 def ratioFromNormalizeRatio(ratio): 
-    ratio_ = sp.sqrt(ratio)
-    return removeAbs(ratio), removeAbsAndConjugate(ratio)
+    noAbs = removeAbs(ratio)
+    return ratio, sp.conjugate(ratio)
 
-def makeScatteringMatrix(transmission, reflection): 
-    transmission, transmissionConjugate = ratioFromNormalizeRatio(sp.sqrt(transmission))
-    reflection, reflectionConjugate = ratioFromNormalizeRatio(sp.sqrt(reflection))
+def makeScatteringMatrix(from_, to): 
+    ratios = from_.previous if from_.regionIndex > to.regionIndex else from_.next
+    transmission, transmissionConjugate = ratioFromNormalizeRatio(ratios.transmissionCoefficent)
+    reflection, reflectionConjugate = ratioFromNormalizeRatio(ratios.reflectionCoefficient)
     return sp.Matrix([
-            [reflectionConjugate, transmission], 
-            [transmissionConjugate, reflection]
+            [sp.sqrt(reflectionConjugate), sp.sqrt(transmission)], 
+            [sp.sqrt(transmissionConjugate), sp.sqrt(reflection)]
         ])
 
-def makeTransmissionMatrix(scatteringMatrix): 
+def makeTransferMatrix(scatteringMatrix): 
     return sp.Matrix([
             [
                     scatteringMatrix.col(1).row(0) - (scatteringMatrix.col(1).row(1) 
@@ -88,43 +104,66 @@ def makeBarrierMatrix(from_ : RegionSymbols):
             [from_.partSummeries[1](from_.startDistance)]
         ])
 
-def transfer(from_, to): 
+def transferWithHarmonicConstants(from_, to): 
     transmission, reflection = makeCoefficentsFromHarmonicConstants(from_, to)
     scatteringMatrix = makeScatteringMatrix(transmission, reflection)
-    transferMatrix = makeTransmissionMatrix(scatteringMatrix)
-    return sp.Eq(makeBarrierMatrix(from_), transferMatrix * makeBarrierMatrix(to))
+    return generalTransferFromScatteringMatrix(from_, to, scatteringMatrix)
 
-def parameterizeTransferForSimulation(symbols, transfer, baseName): 
+def generalTransfer(from_, to): 
+    return generalTransferFromScatteringMatrix(from_, to, makeScatteringMatrix(from_, to))
+
+def generalTransferFromScatteringMatrix(from_, to, scatteringMatrix): 
+    transferMatrix = makeTransferMatrix(scatteringMatrix)
+    return {
+            "from" : from_, 
+            "to" : to, 
+            "scatteringMatrix" : scatteringMatrix, 
+            "transferMatrix" : transferMatrix, 
+            "transfer" : sp.Eq(makeBarrierMatrix(from_), transferMatrix * makeBarrierMatrix(to))
+        }
+
+def parameterizeTransferForSimulation(transferData): 
     inputs = [
-            sp.Symbol(baseName + "_t"), 
-            sp.Symbol(baseName + "_r")
+            sp.Symbol(str(symbols.distance) + "_t"), 
+            sp.Symbol(str(symbols.distance) + "_r")
         ]
     transfer = transfer.replace(symbols.partSummeries[0](symbols.startDistance), inputs[0])
     transfer = transfer.replace(symbols.partSummeries[1](symbols.startDistance), inputs[1])
-    return inputs, transfer
+    return { "inputs" : inputs, "paramterizedTransfer" : transfer }
 
-def lambdifyTransfer(transferSymbols, harmonicConstants): 
-    display(transferSymbols[0][0])
-    display(transferSymbols[1].rhs.row(0)[0])
-    display(transferSymbols[0][1])
-    display(transferSymbols[1].rhs.row(1)[0])
-    return [
-        sp.lambdify([*tuple(transferSymbols[0]), *tuple(harmonicConstants)], transferSymbols[1].rhs.row(0)[0]), 
-        sp.lambdify([*tuple(transferSymbols[0]), *tuple(harmonicConstants)], transferSymbols[1].rhs.row(1)[0])
-    ]
+def lambdifyTransfer(transferSymbols, scatteringParameters): 
+    parameters = [*tuple(transferSymbols["inputs"]), *tuple(scatteringParameters)]
+    calculation = transferSymbols["transfer"].rhs
+    result = transferSymbols["transfer"].lhs
+    return {
+            "parameters" : parameters, 
+            str(result.row(0)[0]) + "Function" : sp.lambdify(parameters, calculation.row(0)[0]), 
+            str(result.row(1)[0]) + "Function" : sp.lambdify(parameters, calculation.row(1)[0])
+        }
 
-def calculateTransfers(regionFunctions, initialValues, log, harmonicConstants): 
+#def calculateTransfers(transferFunctions, initialValues, scatteringConstants): 
+    
+
+def calculateTransfers(regionFunctions, initialValues, log, harmonicConstants, regionBoundrySymbols): 
     if len(regionFunctions) == 1:
         log.append((
                 regionFunctions[0][0](*tuple(initialValues), *tuple(harmonicConstants)), \
-                regionFunctions[0][1](*tuple(initialValues), *tuple(harmonicConstants))
+                regionFunctions[0][1](*tuple(initialValues), *tuple(harmonicConstants)), \
+                regionBoundrySymbols[0][0]
             ))
         return log[-1]
     elif len(regionFunctions) > 0: 
-        transmission, reflection = calculateTransfers(regionFunctions[1:], initialValues, log, harmonicConstants)
+        transmission, reflection, nextRegionBoundrySymbols = calculateTransfers(
+                regionFunctions[1:], 
+                initialValues, 
+                log, 
+                harmonicConstants, 
+                regionBoundrySymbols[1:]
+            )
         log.append((
                 regionFunctions[0][0](transmission, reflection, *tuple(harmonicConstants)), \
-                regionFunctions[0][1](transmission, reflection, *tuple(harmonicConstants))
+                regionFunctions[0][1](transmission, reflection, *tuple(harmonicConstants)), \
+                regionBoundrySymbols[0][0]
             ))
         return log[-1]
     else: 
@@ -142,7 +181,11 @@ def constantPotentialTimeIndependentSchroedingerEquation1D(
                     + (regionSymbols.constantPotential * regionSymbols.waveFunction(position)), 
             totalEnergy * regionSymbols.waveFunction(position)
         )
-        
+
+#def solveODE(symbols : RegionSymbol, schrodingerEquation):
+#        
+
+
 def simpleWaveFunctionNormalization( 
             from_, toOrIndefinite, 
             regionSymbols : RegionSymbols, 
