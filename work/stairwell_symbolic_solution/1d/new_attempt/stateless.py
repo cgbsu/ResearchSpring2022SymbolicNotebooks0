@@ -201,9 +201,6 @@ def performTransfersImplementation(transfers : list[dict], previousTransferValue
     outputs = transfers[0]['matricies']['outputs']
     functions = functionData['functions']
     satisfiedArguments, waveFunctionInputs = inputCoefficients(functions, inputs, coefficients[0])
-    print("INPUTS")
-    display(waveFunctionInputs[0])
-    display(waveFunctionInputs[1])
     arguments, remainingArguments = satisfyParameterDict(waveFunctionInputs, previousTransferValues).values()
     assert len(remainingArguments) == 0, "Parameter not satisfied!"
     arguments = tuple(satisfiedArguments.values()) + tuple(arguments.values())
@@ -213,9 +210,6 @@ def performTransfersImplementation(transfers : list[dict], previousTransferValue
             outputs[0] : functions[waveFunctions[0]](*arguments), 
             outputs[1] : functions[waveFunctions[1]](*arguments)
         }
-    print("OUTPUTS: ")
-    display(outputs[0])
-    display(outputs[1])
     if len(transfers) <= 1:
         return transferValues | thisTransferValues
     else: 
