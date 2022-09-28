@@ -2,6 +2,7 @@ import sympy as sp
 import sympy.physics.units.quantities as sq
 from sympy.physics.quantum.constants import hbar
 import copy
+from collections import OrderedDict
 
 PSI_FUNCTION = sp.Function("psi")
 POTENTIAL_FUNCTION = sp.Function("V")
@@ -173,16 +174,6 @@ def generalTransferFromScatteringMatrix(from_, to, scatteringMatrix):
             "transfer" : sp.Eq(input_["matrix"], transferMatrix["transferMatrix"] * result["matrix"])
         }
 
-#def parameterizeTransferForSimulation(transferData): 
-#    inputs = [
-#            sp.Symbol(str(symbols.distance) + "_t"), 
-#            sp.Symbol(str(symbols.distance) + "_r")
-#        ]
-#    transfer = transfer.replace(symbols.partSummeries[0](symbols.startDistance), inputs[0])
-#    transfer = transfer.replace(symbols.partSummeries[1](symbols.startDistance), inputs[1])
-#    transferData["inputs"] = inputs
-#    transferData["paramterizedTransfer"] = transfer
-
 def lambdifyTransfer(transferData): 
     parameters = transferData["matricies"]["inputs"]
     outputs = transferData["matricies"]["outputs"]
@@ -197,24 +188,58 @@ def lambdifyTransfer(transferData):
         }
     return transferData
 
-def startTransfers(transfers : list[dict], initialTransmission, initialReflection, coefficients : dict): 
-    functionData = transfers[0]['functionData']
-    inputs = transfers[0]['matricies']['inputs']
-    outputs = transfers[0]['matricies']['outputs']
-    functions = functionData['functions']
+def inputCoefficients(functions, inputs, coefficients): 
     assert len(functions) == 2, ("Wrong number of of functions to predict the wave function (reflective and transmission)"
                                 + "at a certain coordinate, are you using more than 2 dimensions?")
     satisfiedArguments, waveFunctionInputs = satisfyParameterDict(inputs, coefficients).values()
     assert len(waveFunctionInputs) == 2, "Insufficiant arguemnts for coefficents"
-    arguments, remainingArguments = satisfyParameterDict(waveFunctionInputs, {
-            waveFunctionInputs[0] : initialTransmission, 
-            waveFunctionInputs[1] : initialReflection
-        }).values()
+    return satisfiedArguments, waveFunctionInputs
+
+def performTransfersImplementation(transfers : list[dict], previousTransferValues, transferValues, coefficients : dict): 
+    functionData = transfers[0]['functionData']
+    inputs = transfers[0]['matricies']['inputs']
+    outputs = transfers[0]['matricies']['outputs']
+    functions = functionData['functions']
+    satisfiedArguments, waveFunctionInputs = inputCoefficients(functions, inputs, coefficients[0])
+    print("INPUTS")
+    display(waveFunctionInputs[0])
+    display(waveFunctionInputs[1])
+    arguments, remainingArguments = satisfyParameterDict(waveFunctionInputs, previousTransferValues).values()
     assert len(remainingArguments) == 0, "Parameter not satisfied!"
     arguments = tuple(satisfiedArguments.values()) + tuple(arguments.values())
     waveFunctions = tuple(functions.keys())
-    return {outputs[0] : functions[waveFunctions[0]](*arguments), outputs[1] : functions[waveFunctions[1]](*arguments)}
+    transferValues |= previousTransferValues
+    thisTransferValues = {
+            outputs[0] : functions[waveFunctions[0]](*arguments), 
+            outputs[1] : functions[waveFunctions[1]](*arguments)
+        }
+    print("OUTPUTS: ")
+    display(outputs[0])
+    display(outputs[1])
+    if len(transfers) <= 1:
+        return transferValues | thisTransferValues
+    else: 
+        return performTransfersImplementation(
+                transfers[1:], 
+                thisTransferValues, 
+                transferValues, 
+                coefficients[1:]
+            )
 
+
+def performTransfers(transfers : list[dict], initialTransmission, initialReflection, coefficients : dict): 
+    functions = transfers[0]['functionData']['functions']
+    inputs = transfers[0]['matricies']['inputs']
+    satisfiedArguments, waveFunctionInputs = inputCoefficients(functions, inputs, coefficients[0])
+    return performTransfersImplementation(
+            transfers, 
+            {
+                    waveFunctionInputs[0] : initialTransmission, 
+                    waveFunctionInputs[1] : initialReflection
+            }, 
+            {}, 
+            coefficients
+        )
 
 def satisfyParameterDict(parameters, inputMapping): 
     arguments = {}
