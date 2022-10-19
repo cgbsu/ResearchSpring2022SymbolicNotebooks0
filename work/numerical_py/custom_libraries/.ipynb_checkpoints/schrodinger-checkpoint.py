@@ -426,7 +426,7 @@ class TimeIndependentSchrodingerConstantPotentials1D( Symbols ):
     def impose_constant_to_boundry( self, region, wave_function, constant ): 
         return self.boundries.add_boundries( 
                 TimeIndependentSchrodingerConstantPotentials1D.BOUNDRY_ZERO_CONDITIONS, {
-                        wave_function.func( region ) : constant 
+                        wave_function.func( region ) : constant
             }, automatically_append = True )
     
     def update_harmonic_constants( self, name_base = None ): 

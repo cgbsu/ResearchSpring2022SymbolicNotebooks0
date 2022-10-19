@@ -6,8 +6,8 @@ from collections import OrderedDict
 
 PSI_FUNCTION = sp.Function("psi")
 POTENTIAL_FUNCTION = sp.Function("V")
-TOTAL_ENERGY_SYMBOL = sq.Symbol('E', nonzero = True, real = True, positive = True)
-MASS_SYMBOL = sq.Quantity('m', positive = True, nonzero = True)
+TOTAL_ENERGY_SYMBOL = sq.Symbol('E_{total}', nonzero = True, real = True, positive = True)
+MASS_SYMBOL = sq.Symbol('m', positive = True, nonzero = True)
 POSITION_SYMBOL = sp.Symbol('x', positive = True)
 DEFAULT_CONJUGATE_NOT_SQUARED_ABSOLUTE_VALUE = True
 DEFAULT_NORMALIZATION_VALUE = 1
@@ -40,7 +40,23 @@ def isIdentifier(identifier):
 
 def functionNameFromIdentifier(identifier): 
     return identifier + "Function"
-        
+
+def orderNames(names, sortIndex = 0): 
+    sameStart = {}
+    results = []
+    for name in names: 
+        if sortIndex < len(name): 
+            sortCharacter = name[sortIndex]
+            if sortCharacter in sameStart.keys(): 
+                sameStart[sortCharacter].append(name)
+            else: 
+                sameStart[sortCharacter] = [name]
+        else: 
+            results.append(name)
+    for ordered in [orderNames(sameStart[character], sortIndex + 1) for character in sorted(list(sameStart))]: 
+        results += ordered
+    return results 
+
 def symbolicToIdentifier(symbolic):
     identifier = str(symbolic)
     replacementList = {
@@ -69,6 +85,9 @@ def substituteIdentifierAtomsList(symbolic):
 def substituteIdentifierAtoms(symbolic):
     return symbolic.subs(substituteIdentifierAtomsList(symbolic))
 
+def makeBoundrySymbol(regionIndex : int): 
+    return sp.Symbol(f'B_{regionIndex}')
+
 class RegionSymbols: 
     def __init__(self, regionIndex): 
         self.regionIndex = regionIndex
@@ -79,13 +98,14 @@ class RegionSymbols:
             ]
         self.distance = makeDistance(self.regionIndex)
         self.harmonicConstant = sp.Symbol(f'k_{self.regionIndex}', real = True)
-        self.boundry = sp.Symbol(f'B_{self.regionIndex}')
+        self.boundry = makeBoundrySymbol(self.regionIndex)
+        self.nextBoundry = makeBoundrySymbol(self.regionIndex + 1)
         self.normalizationConstant = sp.Symbol(f'N_{self.regionIndex}')
         self.partSummeries = [
                 sp.Function(f'psi_{str(self.regionIndex)}_t'), 
                 sp.Function(f'psi_{str(self.regionIndex)}_r')
             ]
-        self.mass = sq.Quantity('m', positive = True, nonzero = True)
+        self.mass = MASS_SYMBOL
         self.constantPotential = sp.Symbol(f'V_{self.regionIndex}', positive = True, real = True)
         self.startDistance = makeStartDistance(self.regionIndex)
         self.transmissionCoefficents = makeFromToSymbol("T", self.regionIndex)
@@ -261,32 +281,7 @@ def generateGeneralTransferFunctions(numberOfRegions):
             lambdifyTransfer(transfer) for transfer in transferFunctionData["transfers"]
         ]
     return transferFunctionData
-    
-def calculateTransfers(regionFunctions, initialValues, log, harmonicConstants, regionBoundrySymbols): 
-    if len(regionFunctions) == 1:
-        log.append((
-                regionFunctions[0][0](*tuple(initialValues), *tuple(harmonicConstants)), \
-                regionFunctions[0][1](*tuple(initialValues), *tuple(harmonicConstants)), \
-                regionBoundrySymbols[0][0]
-            ))
-        return log[-1]
-    elif len(regionFunctions) > 0: 
-        transmission, reflection, nextRegionBoundrySymbols = calculateTransfers(
-                regionFunctions[1:], 
-                initialValues, 
-                log, 
-                harmonicConstants, 
-                regionBoundrySymbols[1:]
-            )
-        log.append((
-                regionFunctions[0][0](transmission, reflection, *tuple(harmonicConstants)), \
-                regionFunctions[0][1](transmission, reflection, *tuple(harmonicConstants)), \
-                regionBoundrySymbols[0][0]
-            ))
-        return log[-1]
-    else: 
-        assert True, "Please input at least one pair of region functions"
-        
+
 def constantPotentialTimeIndependentSchroedingerEquation1D( 
             regionSymbols : RegionSymbols, 
             totalEnergy = TOTAL_ENERGY_SYMBOL, 
@@ -299,10 +294,6 @@ def constantPotentialTimeIndependentSchroedingerEquation1D(
                     + (regionSymbols.constantPotential * regionSymbols.waveFunction(position)), 
             totalEnergy * regionSymbols.waveFunction(position)
         )
-
-#def solveODE(symbols : RegionSymbol, schrodingerEquation):
-#        
-
 
 def simpleWaveFunctionNormalization( 
             from_, toOrIndefinite, 
@@ -357,3 +348,119 @@ def extractHarmonicConstant(regionSymbols, equation):
             manipulate(solveForWaveFunction, lambda step : sp.sqrt((step / secondDerivative(regionSymbols)) ** (-1))).refine().rhs
         )
 
+
+def extractAmplitudeCoefficents(exponentialEquation, position = POSITION_SYMBOL): 
+    C0 = sp.Wild("C0")
+    C1 = sp.Wild("C1")
+    harmonic = sp.Wild("k")
+    results = exponentialEquation.match(C0 * sp.exp(harmonic * position) + C1 * sp.exp(-harmonic * position))
+    
+    return {
+            "transmission" : results[C0], 
+            "reflection" : results[C1], 
+            "harmonicConstant" : results[harmonic]
+    }
+
+def createGeneralSolution(regionSymbols : RegionSymbols, waveEquation : sp.Eq, normalization : sp.Eq): 
+    boundries = {
+        regionSymbols.waveFunction(regionSymbols.startDistance) : regionSymbols.boundry, 
+        regionSymbols.waveFunction(regionSymbols.distance) : regionSymbols.nextBoundry
+    }
+    harmonicConstant = extractHarmonicConstant(regionSymbols, waveEquation)
+    generalSolution = sp.dsolve(waveEquation, ics = boundries)
+    generalSolution = generalSolution.subs({harmonicConstant.rhs : harmonicConstant.lhs})
+    return {
+            "boundries" : boundries, 
+            "harmonicConstantEquation" : harmonicConstant, 
+            "generalSolution" : generalSolution
+        }
+
+def solveUnconstrainedParticularSolution(regionSymbols, generalSolution : sp.Eq): 
+    amplitudes = extractAmplitudeCoefficents(generalSolution["generalSolution"].rhs, POSITION_SYMBOL)
+    exponential = generalSolution["generalSolution"].subs({
+        amplitudes["transmission"] : regionSymbols.constants[0], 
+        amplitudes["reflection"] : regionSymbols.constants[1]
+    })
+    return {
+            "generalSolution" : generalSolution, 
+            "exponential" : exponential, 
+            "amplitudes" : amplitudes
+        }
+
+## TODO: ##
+
+
+def extractNonZero(symbolic):
+    harmonic = sp.Wild('k')
+    expression = sp.Wild('C')
+    nonZero = sp.Ne(harmonic, 0)
+    otherExpression = sp.Wild('A')
+    otherCondition = sp.Wild('B')
+    otherStuff = sp.Wild('Q')
+    extracted = symbolic.match(otherStuff + sp.Piecewise((expression, nonZero), (otherExpression, otherCondition)))
+    return {
+            "nonZero" : extracted[expression], 
+            "otherwise" : extracted[otherExpression], 
+            "rest" : extracted[otherStuff]
+        }
+
+## TODO: ##
+
+def solveForConstrainedAmplitudeCoefficients(
+        regionSymbols : RegionSymbols, 
+        normalization, 
+        unconstrainedParticularSolution : dict
+    ): 
+    integration = normalization.subs({
+            regionSymbols.waveFunction(POSITION_SYMBOL) \
+                    : unconstrainedParticularSolution["exponential"].rhs
+        }).doit()
+    extractedConditions = extractNonZero(integration.lhs)
+    nonZeroNormalizationCase = sp.Eq(
+            extractedConditions["rest"] + extractedConditions["nonZero"], 
+            integration.rhs
+        )
+    c0Solutions = sp.solve(nonZeroNormalizationCase,  regionSymbols.constants[0])
+    c1Solutions = sp.solve(nonZeroNormalizationCase, regionSymbols.constants[1])
+    unconstrainedParticularSolution["unconstrainedAmplitudes"] = {
+            "transmission" : c0Solutions, 
+            "reflection" : c1Solutions
+        }
+    c0Equation = sp.Eq(
+            unconstrainedParticularSolution["amplitudes"]["transmission"] \
+                    * unconstrainedParticularSolution["amplitudes"]["transmission"], 
+            (c0Solutions[0] * c0Solutions[1]).simplify()
+        )
+    constrainedC1Solutions = sp.solve(c0Equation, regionSymbols.constants[1])
+    c1ConstrainedSolution = sp.Eq(
+            regionSymbols.constants[1] ** 2, 
+            (constrainedC1Solutions[0] * constrainedC1Solutions[1]).simplify().refine()
+        )
+    c1Equation = sp.Eq(
+            unconstrainedParticularSolution["amplitudes"]["reflection"] \
+                    * unconstrainedParticularSolution["amplitudes"]["reflection"], 
+            (c1Solutions[0] * c1Solutions[1]).simplify()
+        )
+    constrainedC0Solutions = sp.solve(c1Equation, regionSymbols.constants[0])
+    c0ConstrainedSolution = sp.Eq(
+            regionSymbols.constants[0] ** 2, 
+            (constrainedC0Solutions[0] \
+                    * constrainedC0Solutions[1]).simplify().refine()
+        )
+    unconstrainedParticularSolution["amplitudeEquations"] = {
+            "transmission" : c0Equation, 
+            "reflection" : c1Equation
+        }
+    unconstrainedParticularSolution["amplitudeConstrainedSolutions"] = {
+            "transmission" : constrainedC0Solutions, 
+            "reflection" : constrainedC1Solutions
+        }
+    unconstrainedParticularSolution["amplitudeConstrainedSolution"] = {
+            "transmission" : c0ConstrainedSolution, 
+            "reflection" : c1ConstrainedSolution
+        }
+    unconstrainedParticularSolution["expandedExponential"] \
+            = (unconstrainedParticularSolution["exponential"].rhs \
+                    * sp.conjugate(unconstrainedParticularSolution["exponential"].rhs)
+              ).expand()
+    return unconstrainedParticularSolution
