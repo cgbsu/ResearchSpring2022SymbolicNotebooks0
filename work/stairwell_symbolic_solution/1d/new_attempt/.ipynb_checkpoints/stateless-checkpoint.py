@@ -14,6 +14,11 @@ DEFAULT_NORMALIZATION_VALUE = 1
 INDEFINITE_NORMALIZATION_INTEGRAL = None
 DEFAULT_CONJUGATE_NOT_SQUARED_ABSOLUTE_VALUE = True
 
+RADICAND_TAG = "radicand"
+INVERSE_COEFFICIENT_TAG = "inverseCoefficent"
+OFFSET_TAG = "offset"
+SCALAR_TAG = "scalar"
+
 def makeDistance(region): 
     return sp.Symbol(f'L_{region}', real = True, finite = True)
 
@@ -33,8 +38,10 @@ class RegionCoefficients:
 
 def isIdentifier(identifier):
     firstCharacter = ord(identifier[0])
-    traditionalIdentifier = (firstCharacter >= ord('a') and firstCharacter >= ord('Z')) or firstCharacter == ord('_')
-    if identifier.startswith("conjugate"):
+    lowercase = (firstCharacter >= ord('a') and firstCharacter <= ord('z'))
+    uppercase = (firstCharacter >= ord('A') and firstCharacter <= ord('Z'))
+    traditionalIdentifier = lowercase == True or uppercase == True or firstCharacter == ord('_')
+    if identifier.startswith("conjugate") or identifier.startswith("exp("):
         return False
     return traditionalIdentifier
 
@@ -76,10 +83,24 @@ def symbolicToIdentifier(symbolic):
 def substituteIdentifierAtomsList(symbolic):
     substitutionList = {}
     atoms = symbolic.atoms()
+    #print("---------------------------------------------")
+    #display(atoms)
     atoms |= symbolic.atoms(sp.Function)
+    #print("---------------------------------------------")
+    #display(atoms)
+    #print("---------------------------------------------")
     for atom in atoms: 
+        #print("****************")
+        #display(atom)
+        #print("STR: ", str(atom), " is identifier? ", isIdentifier(str(atom)))
+        #print("$$$$$$$$$$$$$$$$")
         if isIdentifier(str(atom)) == True: 
+            #print("A")
+            #display(atom)
+            #print("X:", symbolicToIdentifier(atom))
             substitutionList[atom] = symbolicToIdentifier(atom)
+        #else: 
+            #print("B")
     return substitutionList
 
 def substituteIdentifierAtoms(symbolic):
@@ -345,7 +366,8 @@ def extractHarmonicConstant(regionSymbols, equation):
     solveForWaveFunction = sp.Eq(waveFunction, sp.solve(equation, regionSymbols.waveFunction(POSITION_SYMBOL))[0])
     return sp.Eq(
             regionSymbols.harmonicConstant, 
-            manipulate(solveForWaveFunction, lambda step : sp.sqrt((step / secondDerivative(regionSymbols)) ** (-1))).refine().rhs
+            manipulate(solveForWaveFunction, \
+                    lambda step : sp.sqrt((step / secondDerivative(regionSymbols)) ** (-1))).refine().rhs
         )
 
 
@@ -359,7 +381,7 @@ def extractAmplitudeCoefficents(exponentialEquation, position = POSITION_SYMBOL)
             "transmission" : results[C0], 
             "reflection" : results[C1], 
             "harmonicConstant" : results[harmonic]
-    }
+        }
 
 def createGeneralSolution(regionSymbols : RegionSymbols, waveEquation : sp.Eq, normalization : sp.Eq): 
     boundries = {
@@ -387,9 +409,6 @@ def solveUnconstrainedParticularSolution(regionSymbols, generalSolution : sp.Eq)
             "amplitudes" : amplitudes
         }
 
-## TODO: ##
-
-
 def extractNonZero(symbolic):
     harmonic = sp.Wild('k')
     expression = sp.Wild('C')
@@ -404,13 +423,73 @@ def extractNonZero(symbolic):
             "rest" : extracted[otherStuff]
         }
 
-## TODO: ##
+def makeAmplitudeEquation(amplitudeConstant, amplitudeSolutions, refine = False): 
+    amplitudeExpression = (amplitudeSolutions[0] * amplitudeSolutions[1]).simplify()
+    return sp.Eq(
+            amplitudeConstant * amplitudeConstant, 
+            amplitudeExpression.refine() if refine == True else amplitudeExpression
+        )
+
+def makeAmplitudeIntermediateEquations(
+            unconstrainedParticularSolution : dict, 
+            nonZeroNormalizationCase : sp.Eq, 
+            regionSymbols : RegionSymbols
+        ):
+    c0Solutions = sp.solve(nonZeroNormalizationCase,  regionSymbols.constants[0])
+    c1Solutions = sp.solve(nonZeroNormalizationCase, regionSymbols.constants[1])
+    intermediateSolutions = {}
+    intermediateSolutions["unconstrainedAmplitudes"] = {
+            "transmission" : c0Solutions, 
+            "reflection" : c1Solutions
+        }
+    c0Equation = makeAmplitudeEquation(
+            unconstrainedParticularSolution["amplitudes"]["transmission"], 
+            c0Solutions
+        )
+    c1Equation = makeAmplitudeEquation(
+            unconstrainedParticularSolution["amplitudes"]["reflection"], 
+            c1Solutions
+        )
+    intermediateSolutions["intermediateSolutions"] = {
+            "transmission" : c0Equation, 
+            "reflection" : c1Equation
+        }
+    return intermediateSolutions
+
+def solutionsEqualTo(equationToSolve : sp.Eq, toSolveFor : sp.Symbol) -> list: 
+    return [sp.Eq(toSolveFor, solution) for solution in sp.solve(equationToSolve, toSolveFor)]
+
+def makeConstrainedSolution(intermediateSolutions : dict, regionSymbols : RegionSymbols):
+    constrainedParticularSolution = {}
+    constrainedParticularSolution["amplitudeConstrainedSolutions"] = {
+            "transmission" : sp.solve(
+                        intermediateSolutions["intermediateSolutions"]["reflection"], 
+                        regionSymbols.constants[0]
+                    ), 
+            "reflection" : sp.solve(
+                        intermediateSolutions["intermediateSolutions"]["transmission"], 
+                        regionSymbols.constants[1]
+                    )
+        }
+    constrainedParticularSolution["amplitudeConstrainedSolution"] = {
+            "transmission" : makeAmplitudeEquation(
+                    regionSymbols.constants[0], 
+                    constrainedParticularSolution["amplitudeConstrainedSolutions"]["transmission"], 
+                    True
+                ), 
+            "reflection" : makeAmplitudeEquation(
+                    regionSymbols.constants[1], 
+                    constrainedParticularSolution["amplitudeConstrainedSolutions"]["reflection"], 
+                    True
+                )
+        }
+    return constrainedParticularSolution
 
 def solveForConstrainedAmplitudeCoefficients(
-        regionSymbols : RegionSymbols, 
-        normalization, 
-        unconstrainedParticularSolution : dict
-    ): 
+            regionSymbols : RegionSymbols, 
+            normalization, 
+            unconstrainedParticularSolution : dict
+        ) -> dict: 
     integration = normalization.subs({
             regionSymbols.waveFunction(POSITION_SYMBOL) \
                     : unconstrainedParticularSolution["exponential"].rhs
@@ -420,47 +499,169 @@ def solveForConstrainedAmplitudeCoefficients(
             extractedConditions["rest"] + extractedConditions["nonZero"], 
             integration.rhs
         )
-    c0Solutions = sp.solve(nonZeroNormalizationCase,  regionSymbols.constants[0])
-    c1Solutions = sp.solve(nonZeroNormalizationCase, regionSymbols.constants[1])
-    unconstrainedParticularSolution["unconstrainedAmplitudes"] = {
-            "transmission" : c0Solutions, 
-            "reflection" : c1Solutions
-        }
-    c0Equation = sp.Eq(
-            unconstrainedParticularSolution["amplitudes"]["transmission"] \
-                    * unconstrainedParticularSolution["amplitudes"]["transmission"], 
-            (c0Solutions[0] * c0Solutions[1]).simplify()
+    intermediateSolutions = makeAmplitudeIntermediateEquations(
+            unconstrainedParticularSolution, 
+            nonZeroNormalizationCase, 
+            regionSymbols
         )
-    constrainedC1Solutions = sp.solve(c0Equation, regionSymbols.constants[1])
-    c1ConstrainedSolution = sp.Eq(
-            regionSymbols.constants[1] ** 2, 
-            (constrainedC1Solutions[0] * constrainedC1Solutions[1]).simplify().refine()
-        )
-    c1Equation = sp.Eq(
-            unconstrainedParticularSolution["amplitudes"]["reflection"] \
-                    * unconstrainedParticularSolution["amplitudes"]["reflection"], 
-            (c1Solutions[0] * c1Solutions[1]).simplify()
-        )
-    constrainedC0Solutions = sp.solve(c1Equation, regionSymbols.constants[0])
-    c0ConstrainedSolution = sp.Eq(
-            regionSymbols.constants[0] ** 2, 
-            (constrainedC0Solutions[0] \
-                    * constrainedC0Solutions[1]).simplify().refine()
-        )
-    unconstrainedParticularSolution["amplitudeEquations"] = {
-            "transmission" : c0Equation, 
-            "reflection" : c1Equation
-        }
-    unconstrainedParticularSolution["amplitudeConstrainedSolutions"] = {
-            "transmission" : constrainedC0Solutions, 
-            "reflection" : constrainedC1Solutions
-        }
-    unconstrainedParticularSolution["amplitudeConstrainedSolution"] = {
-            "transmission" : c0ConstrainedSolution, 
-            "reflection" : c1ConstrainedSolution
-        }
+    constrainedParticularSolution = makeConstrainedSolution(intermediateSolutions, regionSymbols)
     unconstrainedParticularSolution["expandedExponential"] \
             = (unconstrainedParticularSolution["exponential"].rhs \
                     * sp.conjugate(unconstrainedParticularSolution["exponential"].rhs)
               ).expand()
-    return unconstrainedParticularSolution
+    return {
+            "regionSymbols" : regionSymbols, 
+            "unconstrainedParticularSolution" : unconstrainedParticularSolution, 
+            "intermediateSolutions" : intermediateSolutions, 
+            "constrainedParticularSolution" : constrainedParticularSolution
+        }
+
+def makeBoundrySubstitutions(regionSymbols : RegionSymbols) -> dict: 
+    boundrySubstitutions = {
+            regionSymbols.boundry 
+                    : symbolicToIdentifier(regionSymbols.waveFunction(regionSymbols.startDistance)), 
+            regionSymbols.nextBoundry 
+                    : symbolicToIdentifier(regionSymbols.waveFunction(regionSymbols.distance))
+        }
+    return boundrySubstitutions
+
+def makeRootEquation(radicand, inverseCoefficent, scalar, offset): 
+    return ((offset + sp.sqrt(radicand)) * scalar) / inverseCoefficent 
+
+def extrapolateAmplitudeCoefficientComponents(
+            constants : dict, 
+            constrainedAmplitudeParticularSolutions : dict, 
+            waveKeys = ["transmission", "reflection"], 
+            radicandTag = RADICAND_TAG, 
+            inverseCoefficentTag = INVERSE_COEFFICIENT_TAG, 
+            offsetTag = OFFSET_TAG, 
+            scalarTag = SCALAR_TAG
+        ) -> dict: 
+    radicand = sp.Wild(radicandTag)
+    inverseCoefficent = sp.Wild(inverseCoefficentTag)
+    offset = sp.Wild(offsetTag)
+    scalar = sp.Wild(scalarTag)
+    root = makeRootEquation(radicand, inverseCoefficent, scalar, offset)
+    extrapolated = {}
+    for wave in waveKeys: 
+        constantName = symbolicToIdentifier(constants[wave])
+        current = extrapolated[constantName] = {}
+        current["components"] = []
+        for solutionIndex, solution in enumerate(constrainedAmplitudeParticularSolutions[wave]): 
+            rootComponents = solution.match(root)
+            nameComponent = lambda component : constantName + str(solutionIndex) + str(component)[:-1]
+            indexComponent = lambda componentName, component : {
+                    "component" : sp.Abs(component) if componentName == radicandTag else component, 
+                    "canonicalName" : str(componentName)[:-1]
+                }
+            rootComponents = {nameComponent(key) : indexComponent(key, item) for key, item in rootComponents.items()}
+            current["components"].append(rootComponents)
+    return extrapolated
+
+def generateAmplitudCoefficientEquations(
+            regionSymbols : RegionSymbols, 
+            waveEquation : sp.Eq, 
+            normalization : sp.Eq
+        ) -> dict: 
+    generalSolution = createGeneralSolution(regionSymbols, waveEquation, normalization)
+    unconstrainedParticularSolution = solveUnconstrainedParticularSolution(regionSymbols, generalSolution)
+    constrainedSolutions = solveForConstrainedAmplitudeCoefficients(
+            regionSymbols, 
+            normalization, 
+            unconstrainedParticularSolution
+        )
+    constants = {
+            "transmission" : regionSymbols.constants[0], 
+            "reflection" : regionSymbols.constants[1]
+        }
+    extrapolatedParts = extrapolateAmplitudeCoefficientComponents(
+            constants, 
+            constrainedSolutions["constrainedParticularSolution"]["amplitudeConstrainedSolutions"]
+        )
+    return {
+            "regionSymbols" : regionSymbols, 
+            "waveEquation" : waveEquation, 
+            "normalization" : normalization, 
+            "generalSolution" : generalSolution, 
+            "unconstrainedParticularSolution" : unconstrainedParticularSolution, 
+            "constarinedParticularSolutions" : constrainedSolutions, 
+            "extrapolatedComponentsOfConstants" : extrapolatedParts
+        }
+
+def generateAmplitudeCoefficientNumericalFunctionsFromComponentEquations(
+            amplitudeCoefficientEquations : dict, 
+            radicandTag = RADICAND_TAG, 
+            inverseCoefficentTag = INVERSE_COEFFICIENT_TAG, 
+            offsetTag = OFFSET_TAG, 
+            scalarTag = SCALAR_TAG
+        ) -> dict: 
+    constantComponents = amplitudeCoefficientEquations["extrapolatedComponentsOfConstants"]
+    constantAmplitudeCalculations = {}
+    for constant, components in constantComponents.items(): 
+        solutions = []
+        for solution in components["components"]: 
+            componentFunctions = {}
+            canoticalParameters = {}
+            componentParameters = {}
+            allParameters = set()
+            for componentName, component in solution.items(): 
+                ida = substituteIdentifierAtomsList(component["component"])
+                #display(ida)
+                parameters = orderNames(list(ida.values()))
+                allParameters |= set(parameters)
+                name = functionNameFromIdentifier(componentName)
+                componentFunctions[name] = {
+                        "function" : sp.lambdify(
+                                parameters, 
+                                ida
+                            ), 
+                        "parameters" : parameters
+                    }
+                canoticalParameters[component["canonicalName"]] = name
+            solution["componentFunctions"] = componentFunctions
+            solution["generalFunctionParameters"] = orderNames(list(canoticalParameters.values()))
+            print(canoticalParameters)
+            solution["generalFunction"] = sp.lambdify(
+                    solution["generalFunctionParameters"], 
+                    makeRootEquation(**canoticalParameters)
+                )
+            solution["parameters"] = orderNames(list(allParameters))
+            def calculateAmplitude(**kwargs): 
+                generalFunctionArguments = {}
+                for componentName, component in componentParameters.items(): 
+                    generalFunctionArguments[componentName] \
+                            = component["function"](**{kwargs[parameter] for parameter in component["parameters"]})
+                return solution["generalFunction"](**generalFunctionArguments)
+            solution["function"] = calculateAmplitude
+            solutions.append(solution)
+        constantAmplitudeCalculations[symbolicToIdentifier(constant)] = solutions
+    return constantAmplitudeCalculations
+
+def generateAmplitudeCoefficientNumericalFunctions(
+            regionSymbols : RegionSymbols, 
+            waveEquation : sp.Eq, 
+            normalization : sp.Eq
+            ) -> dict:
+    amplitudeCoefficientEquations = generateAmplitudCoefficientEquations(
+            regionSymbols, 
+            waveEquation, 
+            normalization
+        )
+    constantAmplitudeCalculations \
+            = generateAmplitudeCoefficientNumericalFunctionsFromComponentEquations(
+                    amplitudeCoefficientEquations
+                )
+
+#def makeWaveFunctionFromTransfer(transferData : dict, transfers : dict) -> dict: 
+#    calculation = transferData["transfer"].rhs
+#    transferData["transfer"] 
+#    nonNormalized = regionSymbols.constants[0] + regionSymbols.constants[1]
+#    symbolicBoundry = (nonNormalized * sp.conjugate(nonNormalized)).simplify().refine()
+#    outputs = transferData["outputs"]
+#    nonNormalizedNumericWave = transfers[outputs[0]] + transfers[outputs[1]]
+#    nonNormalizedNumericWave * np.conjugate(nonNormalizedNumericWave)
+#    return {
+#            "symbolic" : symbolicBoundry, 
+#            "numeric" : nonNormalizedNumericWave
+#        }
+

@@ -3,7 +3,6 @@ import sympy.physics.units.quantities as sq
 from sympy.physics.quantum.constants import hbar
 import copy
 from collections import OrderedDict
-import inspect
 
 PSI_FUNCTION = sp.Function("psi")
 POTENTIAL_FUNCTION = sp.Function("V")
@@ -39,10 +38,8 @@ class RegionCoefficients:
 
 def isIdentifier(identifier):
     firstCharacter = ord(identifier[0])
-    lowercase = (firstCharacter >= ord('a') and firstCharacter <= ord('z'))
-    uppercase = (firstCharacter >= ord('A') and firstCharacter <= ord('Z'))
-    traditionalIdentifier = lowercase == True or uppercase == True or firstCharacter == ord('_')
-    if identifier.startswith("conjugate") or identifier.startswith("exp("):
+    traditionalIdentifier = (firstCharacter >= ord('a') and firstCharacter >= ord('Z')) or firstCharacter == ord('_')
+    if identifier.startswith("conjugate"):
         return False
     return traditionalIdentifier
 
@@ -84,24 +81,10 @@ def symbolicToIdentifier(symbolic):
 def substituteIdentifierAtomsList(symbolic):
     substitutionList = {}
     atoms = symbolic.atoms()
-    #print("---------------------------------------------")
-    #display(atoms)
     atoms |= symbolic.atoms(sp.Function)
-    #print("---------------------------------------------")
-    #display(atoms)
-    #print("---------------------------------------------")
     for atom in atoms: 
-        #print("****************")
-        #display(atom)
-        #print("STR: ", str(atom), " is identifier? ", isIdentifier(str(atom)))
-        #print("$$$$$$$$$$$$$$$$")
         if isIdentifier(str(atom)) == True: 
-            #print("A")
-            #display(atom)
-            #print("X:", symbolicToIdentifier(atom))
             substitutionList[atom] = symbolicToIdentifier(atom)
-        #else: 
-            #print("B")
     return substitutionList
 
 def substituteIdentifierAtoms(symbolic):
@@ -526,13 +509,13 @@ def makeBoundrySubstitutions(regionSymbols : RegionSymbols) -> dict:
         }
     return boundrySubstitutions
 
-def makeRootEquation(radicand, inverseCoefficent, scalar, offset): 
+def makeRootEquation(radicand, inverseCoefficient, scalar, offset): 
     return ((offset + sp.sqrt(radicand)) * scalar) / inverseCoefficent 
 
 def extrapolateAmplitudeCoefficientComponents(
             constants : dict, 
             constrainedAmplitudeParticularSolutions : dict, 
-            waveKeys = ["transmission", "reflection"], 
+            waveKeys = ["transmission", "reflection"]
             radicandTag = RADICAND_TAG, 
             inverseCoefficentTag = INVERSE_COEFFICIENT_TAG, 
             offsetTag = OFFSET_TAG, 
@@ -550,9 +533,9 @@ def extrapolateAmplitudeCoefficientComponents(
         current["components"] = []
         for solutionIndex, solution in enumerate(constrainedAmplitudeParticularSolutions[wave]): 
             rootComponents = solution.match(root)
-            nameComponent = lambda component : constantName + str(solutionIndex) + str(component)[:-1]
+            nameCompoment = lambda component : constantName + str(solutionIndex) + str(component)[:-1]
             indexComponent = lambda componentName, component : {
-                    "component" : sp.Abs(component) if componentName == radicandTag else component, 
+                    "component" : component, 
                     "canonicalName" : str(componentName)[:-1]
                 }
             rootComponents = {nameComponent(key) : indexComponent(key, item) for key, item in rootComponents.items()}
@@ -575,13 +558,10 @@ def generateAmplitudCoefficientEquations(
             "transmission" : regionSymbols.constants[0], 
             "reflection" : regionSymbols.constants[1]
         }
-    extrapolatedParts = extrapolateAmplitudeCoefficientComponents(
-            constants, 
-            constrainedSolutions["constrainedParticularSolution"]["amplitudeConstrainedSolutions"]
-        )
+    extrapolatedParts = extrapolateAmplitudeCoefficientComponents(constants, constrainedSolutions)
     return {
             "regionSymbols" : regionSymbols, 
-            "waveEquation" : waveEquation, 
+            "waveFunction" : waveFunction, 
             "normalization" : normalization, 
             "generalSolution" : generalSolution, 
             "unconstrainedParticularSolution" : unconstrainedParticularSolution, 
@@ -589,114 +569,44 @@ def generateAmplitudCoefficientEquations(
             "extrapolatedComponentsOfConstants" : extrapolatedParts
         }
 
-def lambdifySolutionComponents(solution : dict) -> dict: 
-    componentFunctions = {}
-    canoticalParameters = {}
-    allParameters = set()
-    for componentName, component in solution.items(): 
-        componentExpression = component["component"]
-        parameters = orderNames(list(
-                substituteIdentifierAtomsList(componentExpression).values()
-            ))
-        allParameters |= set(parameters)
-        name = functionNameFromIdentifier(componentName)
-        componentFunctions[name] = {
-                "function" : sp.lambdify(
-                        parameters, 
-                        componentExpression
-                    ), 
-                "parameters" : parameters
-            }
-        canoticalParameters[component["canonicalName"]] = name
-    return {
-            "componentFunctions" : componentFunctions, 
-            "canoticalParameters" : canoticalParameters, 
-            "allParameters" : allParameters
-        }
-
-
-def generateNumericalFunctionFromGeneralFunctionAndComponents(
-            solution, 
-            components : dict, 
-            allParameters : dict
-        ) -> dict: 
-    def calculate(**kwargs): 
-        generalFunctionArguments = {}
-        for componentName, component in components.items(): 
-            print("C: ", componentName, component, kwargs)
-            componentArguments = {parameter : kwargs[parameter] \
-                    for parameter in component["parameters"]}
-            #componentArguments = {}
-            #for parameter in component["parameters"]: 
-            #    print("P: ", parameter, "A:", kwargs[parameter])
-            #    componentArguments[parameter] = kwargs[parameter]
-            print("CA: ", componentArguments)
-            print("function: ", component["function"])
-            code, line = inspect.getsourcelines(component["function"])
-            print("function code: ", ''.join(code))
-            computation = component["function"](**componentArguments)
-            print("computation: ", computation)
-            print("componentName: ", componentName)
-            generalFunctionArguments[componentName] = computation
-            print("GC: ", generalFunctionArguments[componentName])
-        print(generalFunctionArguments)
-        return solution["generalFunction"](**generalFunctionArguments)
-    return calculate
-    
-def generateAmplitudeCoefficientNumericalFunctionsFromComponentEquations(
-            amplitudeCoefficientEquations : dict, 
-            radicandTag = RADICAND_TAG, 
+def generateAmplitudeCoefficientNumericalFunctions(amplitudeCoefficientEquations : dict, radicandTag = RADICAND_TAG, 
             inverseCoefficentTag = INVERSE_COEFFICIENT_TAG, 
             offsetTag = OFFSET_TAG, 
             scalarTag = SCALAR_TAG
-        ) -> dict: 
+        ): 
     constantComponents = amplitudeCoefficientEquations["extrapolatedComponentsOfConstants"]
-    constantAmplitudeCalculations = {}
     for constant, components in constantComponents.items(): 
-        solutions = []
-        for solution in components["components"]: 
-            display(solution)
-            numericalSolutionComponents = lambdifySolutionComponents(solution)
-            allParameters = numericalSolutionComponents["allParameters"]
-            solution["componentFunctions"] = numericalSolutionComponents["componentFunctions"]
-            solution["generalFunctionParameters"] = orderNames(list(
-                    numericalSolutionComponents["canoticalParameters"].values()
-                ))
-            canonicalParameters = numericalSolutionComponents["canoticalParameters"]
-            canonicalParameters = {key : sp.Symbol(value) for key, value in canonicalParameters.items()}
+        for solution in components: 
+            compomentFunctions = {}
+            canoticalParameters = {}
+            componentParameters = {}
+            allParameters = set()
+            for componentName, component in solution.items(): 
+                parameters = orderNames(substituteIdentifierAtomsList(component))
+                allParameters |= set(parameters)
+                name = functionNameFromIdentifier(componentName)
+                componentFunctions[name] = {
+                        "function" : sp.lambdify(
+                                parameters, 
+                                substituteIdentifierAtoms(component)
+                            ), 
+                        "parameters" : parameters
+                    }
+                canoticalParameters[component[canonicalName]] = name
+            solution["componentFunctions"] = componentFunctions
+            solution["generalFunctionParameters"] = orderNames(list(canoticalParameters.values()))
             solution["generalFunction"] = sp.lambdify(
                     solution["generalFunctionParameters"], 
-                    makeRootEquation(**canonicalParameters)
+                    makeRootEquation(**canoticalParameters)
                 )
             solution["parameters"] = orderNames(list(allParameters))
-            solution["function"] = generateNumericalFunctionFromGeneralFunctionAndComponents(
-                    solution, 
-                    solution["componentFunctions"], 
-                    allParameters
-                )
-            solution["numericalSolutionComponents"] = numericalSolutionComponents
-            solutions.append(solution)
-        constantAmplitudeCalculations[symbolicToIdentifier(constant)] = solutions
-    return constantAmplitudeCalculations
+            def calculateAmplitude(**kwargs): 
+                generalFunctionArguments = {}
+                for componentName, component in componentParameters.items(): 
+                    generalFunctionArguments[componentName] \
+                            = component["function"](**{kwargs[parameter] for parameter in component["parameters"]})
+                return solution["generalFunction"](**generalFunctionArguments)
 
-def generateAmplitudeCoefficientNumericalFunctions(
-            regionSymbols : RegionSymbols, 
-            waveEquation : sp.Eq, 
-            normalization : sp.Eq
-        ) -> dict:
-    amplitudeCoefficientEquations = generateAmplitudCoefficientEquations(
-            regionSymbols, 
-            waveEquation, 
-            normalization
-        )
-    constantAmplitudeCalculations \
-            = generateAmplitudeCoefficientNumericalFunctionsFromComponentEquations(
-                    amplitudeCoefficientEquations
-                )
-    return {
-            "amplitudeCoefficientEquations" : amplitudeCoefficientEquations, 
-            "constantAmplitudeCalculations" : constantAmplitudeCalculations
-        }
 
 
 #def makeWaveFunctionFromTransfer(transferData : dict, transfers : dict) -> dict: 
