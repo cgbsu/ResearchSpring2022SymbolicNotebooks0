@@ -84,24 +84,10 @@ def symbolicToIdentifier(symbolic):
 def substituteIdentifierAtomsList(symbolic):
     substitutionList = {}
     atoms = symbolic.atoms()
-    #print("---------------------------------------------")
-    #display(atoms)
     atoms |= symbolic.atoms(sp.Function)
-    #print("---------------------------------------------")
-    #display(atoms)
-    #print("---------------------------------------------")
     for atom in atoms: 
-        #print("****************")
-        #display(atom)
-        #print("STR: ", str(atom), " is identifier? ", isIdentifier(str(atom)))
-        #print("$$$$$$$$$$$$$$$$")
         if isIdentifier(str(atom)) == True: 
-            #print("A")
-            #display(atom)
-            #print("X:", symbolicToIdentifier(atom))
             substitutionList[atom] = symbolicToIdentifier(atom)
-        #else: 
-            #print("B")
     return substitutionList
 
 def substituteIdentifierAtoms(symbolic):
@@ -285,7 +271,6 @@ def satisfyParameterDict(parameters, inputMapping):
         satisfied = parameter == parameters[0]
         parameters = parameters[1:]
         if satisfied == False: 
-            print(parameter)
             assert satisfied, ("satisfyParameters: Parameter not in parameter list or is not"
                     "the current parameter (parameter order must be preserved)!")
         else: 
@@ -623,23 +608,10 @@ def generateNumericalFunctionFromGeneralFunctionAndComponents(
     def calculate(**kwargs): 
         generalFunctionArguments = {}
         for componentName, component in components.items(): 
-            print("C: ", componentName, component, kwargs)
             componentArguments = {parameter : kwargs[parameter] \
                     for parameter in component["parameters"]}
-            #componentArguments = {}
-            #for parameter in component["parameters"]: 
-            #    print("P: ", parameter, "A:", kwargs[parameter])
-            #    componentArguments[parameter] = kwargs[parameter]
-            print("CA: ", componentArguments)
-            print("function: ", component["function"])
-            code, line = inspect.getsourcelines(component["function"])
-            print("function code: ", ''.join(code))
-            computation = component["function"](**componentArguments)
-            print("computation: ", computation)
-            print("componentName: ", componentName)
-            generalFunctionArguments[componentName] = computation
-            print("GC: ", generalFunctionArguments[componentName])
-        print(generalFunctionArguments)
+            generalFunctionArguments[componentName] \
+                    = component["function"](**componentArguments)
         return solution["generalFunction"](**generalFunctionArguments)
     return calculate
     
@@ -655,7 +627,6 @@ def generateAmplitudeCoefficientNumericalFunctionsFromComponentEquations(
     for constant, components in constantComponents.items(): 
         solutions = []
         for solution in components["components"]: 
-            display(solution)
             numericalSolutionComponents = lambdifySolutionComponents(solution)
             allParameters = numericalSolutionComponents["allParameters"]
             solution["componentFunctions"] = numericalSolutionComponents["componentFunctions"]
