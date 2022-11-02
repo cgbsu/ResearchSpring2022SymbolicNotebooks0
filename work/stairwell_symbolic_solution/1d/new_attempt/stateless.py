@@ -143,12 +143,22 @@ def ratioFromNormalizeRatio(ratio):
     noAbs = removeAbs(ratio)
     return ratio, sp.conjugate(ratio)
 
+def selectRegionCoefficients(
+            from_ : RegionSymbols, 
+            to : RegionSymbols, 
+            coefficents : RegionCoefficients = None
+        ) -> RegionCoefficients: 
+    return coefficents if coefficents else (from_.previous if from_.regionIndex > to.regionIndex else from_.next)
+
 def makeScatteringMatrix(from_, to, coefficents : RegionCoefficients = None): 
-    ratios = coefficents if coefficents else (from_.previous if from_.regionIndex > to.regionIndex else from_.next)
+    ratios = selectRegionCoefficients(from_, to, coefficents)
     transmission, transmissionConjugate = ratioFromNormalizeRatio(ratios.transmissionCoefficent)
     reflection, reflectionConjugate = ratioFromNormalizeRatio(ratios.reflectionCoefficient)
     return {
-            "inputs" : [symbolicToIdentifier(ratios.transmissionCoefficent), symbolicToIdentifier(ratios.reflectionCoefficient)], 
+            "inputs" : [
+                    symbolicToIdentifier(ratios.transmissionCoefficent), 
+                    symbolicToIdentifier(ratios.reflectionCoefficient)
+                ], 
             "scatteringMatrix" : sp.Matrix([
                     [sp.sqrt(reflectionConjugate), sp.sqrt(transmission)], 
                     [sp.sqrt(transmissionConjugate), sp.sqrt(reflection)]
@@ -174,7 +184,10 @@ def makeBarrierMatrix(from_ : RegionSymbols):
     transmission = from_.partSummeries[0](from_.startDistance)
     reflection = from_.partSummeries[1](from_.startDistance)
     return {
-            "inputs" : [symbolicToIdentifier(transmission), symbolicToIdentifier(reflection)], 
+            "inputs" : [
+                    symbolicToIdentifier(transmission), 
+                    symbolicToIdentifier(reflection)
+                ], 
             "matrix" : sp.Matrix([
                     [transmission], 
                     [reflection]
@@ -210,8 +223,14 @@ def lambdifyTransfer(transferData):
     transferData["functionData"] = { 
             "paramters" : parameters, 
             "functions" : {
-                    functionNameFromIdentifier(outputs[0]) : sp.lambdify(parameters, substituteIdentifierAtoms(calculation.row(0)[0])), 
-                    functionNameFromIdentifier(outputs[1]) : sp.lambdify(parameters, substituteIdentifierAtoms(calculation.row(1)[0]))
+                    functionNameFromIdentifier(outputs[0]) : sp.lambdify(
+                            parameters, 
+                            substituteIdentifierAtoms(calculation.row(0)[0])
+                        ), 
+                    functionNameFromIdentifier(outputs[1]) : sp.lambdify(
+                            parameters, 
+                            substituteIdentifierAtoms(calculation.row(1)[0])
+                        )
                 }
         }
     return transferData
@@ -277,11 +296,48 @@ def satisfyParameterDict(parameters, inputMapping):
             arguments[parameter] = argument
     return {"arguments" : arguments, "remainingParameters" : parameters}
 
-def generateGeneralTransferFunctions(numberOfRegions): 
+def defaultTransmissionReflectionCoefficientGenerator(
+            from_ : RegionSymbols, 
+            to : RegionSymbols
+        ) -> dict:
+    regionCoefficients = selectRegionCoefficients(from_, to)
+    identifiers = [
+            symbolicToIdentifier(regionCoefficients.transmissionCoefficent), 
+            symbolicToIdentifier(regionCoefficients.reflectionCoefficient)
+        ]
+    identity = lambda identifier : sp.lambdify(identifier, sp.Symbol(identifier))
+    return {
+            "from" : from_, 
+            "to" : to, 
+            "inputs" : identifiers, 
+            "outputs" : regionCoefficients, 
+            "computations" : {
+                    identifiers[0] : identity(identifiers[0]), 
+                    identifiers[1] : identity(identifiers[1])
+                }
+        }
+
+def generateBoundryTransferReflectionCoefficients(
+            regionSymbols : list[RegionSymbols], 
+            transmissionReflectionCoefficentGenerator 
+                    = defaultTransmissionReflectionCoefficientGenerator
+        ) -> list: 
+    return [
+            transmissionReflectionCoefficentGenerator(
+                    regionSymbols[ii + 1], 
+                    regionSymbols[ii]
+                ) \
+            for ii in range(1, len(regionSymbols) - 1)
+        ]
+
+def generateGeneralTransferFunctions(numberOfRegions : int) -> dict: 
     transferFunctionData = {"regionSymbols" : [RegionSymbols(ii - 1) for ii in range(numberOfRegions + 2)]}
     regionSymbols = transferFunctionData["regionSymbols"]
     transferFunctionData["transfers"] = [
-            generalTransfer(regionSymbols[ii + 1], regionSymbols[ii]) \
+            generalTransfer(
+                    regionSymbols[ii + 1], 
+                    regionSymbols[ii]
+                ) \
             for ii in range(1, len(regionSymbols) - 1)
         ]
     transferFunctionData["transferFunctions"] = [
@@ -291,21 +347,22 @@ def generateGeneralTransferFunctions(numberOfRegions):
 
 def constantPotentialTimeIndependentSchroedingerEquation1D( 
             regionSymbols : RegionSymbols, 
-            totalEnergy = TOTAL_ENERGY_SYMBOL, 
-            reducedPlanckConstant = hbar, 
-            position = POSITION_SYMBOL 
+            totalEnergy : sp.Symbol = TOTAL_ENERGY_SYMBOL, 
+            reducedPlanckConstant : sq.Quantity = hbar, 
+            position : sp.Symbol = POSITION_SYMBOL 
         ): 
     return sp.Eq( 
-            ( ( -( reducedPlanckConstant ** 2 ) / ( 2 * regionSymbols.mass ) ) \
+            ((-(reducedPlanckConstant ** 2) / (2 * regionSymbols.mass)) \
                     * sp.Derivative(regionSymbols.waveFunction(position), (position, 2)))
                     + (regionSymbols.constantPotential * regionSymbols.waveFunction(position)), 
             totalEnergy * regionSymbols.waveFunction(position)
         )
 
 def simpleWaveFunctionNormalization( 
-            from_, toOrIndefinite, 
+            from_ : RegionSymbols, 
+            toOrIndefinite : bool, 
             regionSymbols : RegionSymbols, 
-            position = POSITION_SYMBOL, 
+            position : sp.Symbol = POSITION_SYMBOL, 
             conjugateNotSquaredAbsoluteValue 
                     = DEFAULT_CONJUGATE_NOT_SQUARED_ABSOLUTE_VALUE 
         ): 
@@ -326,28 +383,28 @@ def simpleWaveFunctionNormalization(
                 regionSymbols.normalizationConstant
             )
 
-def manipulate(equation, operation): 
+def manipulate(equation : sp.Eq, operation) -> sp.Eq: 
     return sp.Eq(operation(equation.lhs), operation(equation.rhs))
 
-def secondDerivative(regionSymbols : RegionSymbols, position = POSITION_SYMBOL): 
+def secondDerivative(regionSymbols : RegionSymbols, position : sp.Symbol = POSITION_SYMBOL) -> sp.Derivative: 
     return sp.Derivative(regionSymbols.waveFunction(position), (position, 2))
 
 def constantFactor(
             regionSymbols : RegionSymbols, 
-            mass = MASS_SYMBOL, 
-            reducedPlanckConstant = hbar
-        ):
+            mass : sp.Symbol = MASS_SYMBOL, 
+            reducedPlanckConstant : sq.Quantity = hbar
+        ) -> sp.Mul:
     return (reducedPlanckConstant ** 2) / (2 * mass)
 
 def secondDerivativeTerm(
             regionSymbols : RegionSymbols, 
-            position = POSITION_SYMBOL, 
-            mass = MASS_SYMBOL, 
-            reducedPlanckConstant = hbar
-        ):
+            position : sp.Symbol = POSITION_SYMBOL, 
+            mass : sp.Symbol = MASS_SYMBOL, 
+            reducedPlanckConstant : sq.Quantity = hbar
+        ) -> sp.Mul:
     return constantFactor(regionSymbols) * secondDerivative(regionSymbols)
 
-def extractHarmonicConstant(regionSymbols, equation): 
+def extractHarmonicConstant(regionSymbols : RegionSymbols, equation : sp.Eq): 
     waveFunction = regionSymbols.waveFunction(POSITION_SYMBOL)
     solveForWaveFunction = sp.Eq(waveFunction, sp.solve(equation, regionSymbols.waveFunction(POSITION_SYMBOL))[0])
     return sp.Eq(
@@ -357,7 +414,7 @@ def extractHarmonicConstant(regionSymbols, equation):
         )
 
 
-def extractAmplitudeCoefficents(exponentialEquation, position = POSITION_SYMBOL): 
+def extractAmplitudeCoefficents(exponentialEquation : sp.Eq, position : sp.Symbol = POSITION_SYMBOL): 
     C0 = sp.Wild("C0")
     C1 = sp.Wild("C1")
     harmonic = sp.Wild("k")
@@ -383,12 +440,12 @@ def createGeneralSolution(regionSymbols : RegionSymbols, waveEquation : sp.Eq, n
             "generalSolution" : generalSolution
         }
 
-def solveUnconstrainedParticularSolution(regionSymbols, generalSolution : sp.Eq): 
+def solveUnconstrainedParticularSolution(regionSymbols : RegionSymbols, generalSolution : sp.Eq) -> dict: 
     amplitudes = extractAmplitudeCoefficents(generalSolution["generalSolution"].rhs, POSITION_SYMBOL)
     exponential = generalSolution["generalSolution"].subs({
-        amplitudes["transmission"] : regionSymbols.constants[0], 
-        amplitudes["reflection"] : regionSymbols.constants[1]
-    })
+            amplitudes["transmission"] : regionSymbols.constants[0], 
+            amplitudes["reflection"] : regionSymbols.constants[1]
+        })
     return {
             "generalSolution" : generalSolution, 
             "exponential" : exponential, 
@@ -409,7 +466,11 @@ def extractNonZero(symbolic):
             "rest" : extracted[otherStuff]
         }
 
-def makeAmplitudeEquation(amplitudeConstant, amplitudeSolutions, refine = False): 
+def makeAmplitudeEquation(
+            amplitudeConstant : sp.Symbol, 
+            amplitudeSolutions : list, 
+            refine : bool = False
+        ) -> sp.Eq: 
     amplitudeExpression = (amplitudeSolutions[0] * amplitudeSolutions[1]).simplify()
     return sp.Eq(
             amplitudeConstant * amplitudeConstant, 
@@ -420,7 +481,7 @@ def makeAmplitudeIntermediateEquations(
             unconstrainedParticularSolution : dict, 
             nonZeroNormalizationCase : sp.Eq, 
             regionSymbols : RegionSymbols
-        ):
+        ) -> dict:
     c0Solutions = sp.solve(nonZeroNormalizationCase,  regionSymbols.constants[0])
     c1Solutions = sp.solve(nonZeroNormalizationCase, regionSymbols.constants[1])
     intermediateSolutions = {}
@@ -445,7 +506,7 @@ def makeAmplitudeIntermediateEquations(
 def solutionsEqualTo(equationToSolve : sp.Eq, toSolveFor : sp.Symbol) -> list: 
     return [sp.Eq(toSolveFor, solution) for solution in sp.solve(equationToSolve, toSolveFor)]
 
-def makeConstrainedSolution(intermediateSolutions : dict, regionSymbols : RegionSymbols):
+def makeConstrainedSolution(intermediateSolutions : dict, regionSymbols : RegionSymbols) -> dict:
     constrainedParticularSolution = {}
     constrainedParticularSolution["amplitudeConstrainedSolutions"] = {
             "transmission" : sp.solve(
@@ -473,7 +534,7 @@ def makeConstrainedSolution(intermediateSolutions : dict, regionSymbols : Region
 
 def solveForConstrainedAmplitudeCoefficients(
             regionSymbols : RegionSymbols, 
-            normalization, 
+            normalization : sp.Eq, 
             unconstrainedParticularSolution : dict
         ) -> dict: 
     integration = normalization.subs({
@@ -517,11 +578,11 @@ def makeRootEquation(radicand, inverseCoefficent, scalar, offset):
 def extrapolateAmplitudeCoefficientComponents(
             constants : dict, 
             constrainedAmplitudeParticularSolutions : dict, 
-            waveKeys = ["transmission", "reflection"], 
-            radicandTag = RADICAND_TAG, 
-            inverseCoefficentTag = INVERSE_COEFFICIENT_TAG, 
-            offsetTag = OFFSET_TAG, 
-            scalarTag = SCALAR_TAG
+            waveKeys : list = ["transmission", "reflection"], 
+            radicandTag : str = RADICAND_TAG, 
+            inverseCoefficentTag : str = INVERSE_COEFFICIENT_TAG, 
+            offsetTag : str = OFFSET_TAG, 
+            scalarTag : str = SCALAR_TAG
         ) -> dict: 
     radicand = sp.Wild(radicandTag)
     inverseCoefficent = sp.Wild(inverseCoefficentTag)
@@ -617,10 +678,10 @@ def generateNumericalFunctionFromGeneralFunctionAndComponents(
     
 def generateAmplitudeCoefficientNumericalFunctionsFromComponentEquations(
             amplitudeCoefficientEquations : dict, 
-            radicandTag = RADICAND_TAG, 
-            inverseCoefficentTag = INVERSE_COEFFICIENT_TAG, 
-            offsetTag = OFFSET_TAG, 
-            scalarTag = SCALAR_TAG
+            radicandTag : str = RADICAND_TAG, 
+            inverseCoefficentTag : str = INVERSE_COEFFICIENT_TAG, 
+            offsetTag : str = OFFSET_TAG, 
+            scalarTag : str = SCALAR_TAG
         ) -> dict: 
     constantComponents = amplitudeCoefficientEquations["extrapolatedComponentsOfConstants"]
     constantAmplitudeCalculations = {}
@@ -668,7 +729,6 @@ def generateAmplitudeCoefficientNumericalFunctions(
             "amplitudeCoefficientEquations" : amplitudeCoefficientEquations, 
             "constantAmplitudeCalculations" : constantAmplitudeCalculations
         }
-
 
 #def makeWaveFunctionFromTransfer(transferData : dict, transfers : dict) -> dict: 
 #    calculation = transferData["transfer"].rhs
