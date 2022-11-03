@@ -632,6 +632,15 @@ def makeBoundrySubstitutions(regionSymbols : RegionSymbols) -> dict:
         }
     return boundrySubstitutions
 
+def makeBoundryWaveComponentSubstitutions(regionSymbols : RegionSymbols) -> dict: 
+    boundrySubstitutions = {
+            symbolicToIdentifier(regionSymbols.waveFunction(regionSymbols.startDistance)) : 
+                    regionSymbols.boundry, 
+            symbolicToIdentifier(regionSymbols.waveFunction(regionSymbols.distance)) : 
+                    regionSymbols.nextBoundry 
+        }
+    return boundrySubstitutions
+
 def makeRootEquation(radicand, inverseCoefficent, scalar, offset): 
     return ((offset + sp.sqrt(radicand)) * scalar) / inverseCoefficent 
 
@@ -796,10 +805,16 @@ def generateHarmonicConstantFunction(generalSolution : dict) -> dict:
     return {
         "equation" : equation, 
         "parameters" : parameters, 
-        "function" : sp.lambdify(parameters, equation.rhs)
+        "function" : sp.lambdify(parameters, substituteIdentifierAtoms(equation.rhs))
     }
 
-### Untested
+def computeHarmonicConstant(
+            harmonicConstantFunctionData : dict, 
+            basicParameters : dict
+        ) -> dict: 
+    arguments = {parameter : basicParameters[parameter] \
+            for parameter in harmonicConstantFunctionData["parameters"]}
+    return harmonicConstantFunctionData["function"](**arguments)
 
 def createPreliminaryData(
             numberOfRegions : int, 
@@ -818,22 +833,22 @@ def createPreliminaryData(
     preliminaryData["regionSymbols"] = regionSymbols
     preliminaryData["waveEquations"] = [
             constantPotentialTimeIndependentSchroedingerEquation1D(
-                    regionSymbols[ii], 
+                    regionSymbols[ii + 1], 
                     reducedPlanckConstant = customReducedPlanck
                 ) \
             for ii in range(numberOfRegions)
         ]
     preliminaryData["normalizations"] = [
             simpleWaveFunctionNormalization(
-                    regionSymbols[ii].startDistance, 
-                    regionSymbols[ii].distance, 
-                    regionSymbols[ii]
+                    regionSymbols[ii + 1].startDistance, 
+                    regionSymbols[ii + 1].distance, 
+                    regionSymbols[ii + 1]
                 ) \
             for ii in range(numberOfRegions)
         ]
     preliminaryData["generalSolutions"] = [
             createGeneralSolution(
-                    regionSymbols[ii], 
+                    regionSymbols[ii + 1], 
                     preliminaryData["waveEquations"][ii], 
                     preliminaryData["normalizations"][ii]
                 ) \
@@ -847,7 +862,7 @@ def solveForAmplitudeConstants(preliminaryData : dict) -> dict:
     generationCount = range(len(regionSymbols) - 2)
     return [
             generateAmplitudeCoefficientNumericalFunctions(
-                    regionSymbols[ii], 
+                    regionSymbols[ii + 1], 
                     preliminaryData["waveEquations"][ii], 
                     normalizations[ii]
                 ) \
@@ -872,4 +887,97 @@ def generateRegionFunctions(preliminaryData : dict) -> dict:
             "harmonicConstantFunctions" : harmonicConstantFunctions, 
             "amplitudeConstantFunctions" : solveForAmplitudeConstants(preliminaryData)
         }
+
+def replaceKeys(
+            regionSymbols : list[RegionSymbols], 
+            transfers : dict, 
+            substitutionGenerator = makeBoundryWaveComponentSubstitutions
+        ): 
+    boundrySubstitions_ = [
+            makeBoundryWaveComponentSubstitutions(regions) \
+                    for region in preliminaryData["regionSymbols"]
+        ]
+    boundrySubstitions = {}
+    for substitutions in boundrySubstitions_: 
+        for key, value in substitutions: 
+            boundrySubstitions[key] = value
+    newTransfers = {}
+    for key, value in transfers: 
+        for match, replacement in boundrySubstitions: 
+            if match == key: 
+                newTransfers[replacement] = value
+                break
+    return newTransfers
+
+def computeTransferConstantsFromHarmonicConsants(
+            regionFunctions : dict, 
+            initialTransmission : float, 
+            initialReflection : float, 
+            transmissionReflectionCoefficientArguments : dict
+        ) -> dict: 
+    transmissionReflectionCoefficients \
+            = calculateBoundryTransmissionReflectionCoefficients(
+                    regionFunctions["transmissionReflectionFunctions"], 
+                    transmissionReflectionCoefficientArguments 
+                )
+    transmissionReflectionCoefficients = list(reversed(transmissionReflectionCoefficients))
+    transfers = list(reversed(regionFunctions["transferFunctions"]["transfers"]))
+    return performTransfers(
+            transfers, 
+            initialTransmission, 
+            initialReflection, 
+            transmissionReflectionCoefficients
+        )
+
+def computeAmplitudeConstants(
+            regionFunctions : dict, 
+            arguments : dict
+        ) -> dict:
+    amplitudeCalculators = regionFunctions \
+            ["amplitudeConstantFunctions"] \
+            ["constantAmplitudeCalculations"]
+    return {
+            amplitudeConstants[symbolicToIdentifier(constant)] : [
+                    amplitudeConstants["function"](arguments)
+                    for solution in solutions
+                ] \
+            for constant, solutions in amplitudeCalculators.items()
+        }
+
+def computeSimulationConstants(
+            preliminaryData : dict, 
+            regionFunctions : dict, 
+            basicArguments : dict, 
+            initialTransmission : float, 
+            initialReflection : float, 
+        ) -> dict: 
+    harmonicConstants = {
+            symbolicToIdentifier(functionData["equation"].lhs) 
+                    : computeHarmonicConstant(
+                            functionData, 
+                            basicArguments
+                        ) \
+            for functionData in regionFunctions["harmonicConstantFunctions"]
+        }
+    transfers = computeTransferConstantsFromHarmonicConsants(
+            regionFunctions, 
+            basicArguments | harmonicConstants, 
+            initialTransmission, 
+            initialReflection
+        )
+    boundryIndexedTransfers = replaceKeys(
+            preliminaryData["regionSymbols"], 
+            transfers
+        )
+    amplitudeConstants = computeAmplitudeConstants(
+            regionFunctions, 
+            basicArguments | boundryIndexedTransfers | harmonicConstants
+        )
+    return {
+            "harmonicConstants" : harmonicConstants, 
+            "transfers" : transfers, 
+            "boundryIndexedTransfers" : boundryIndexedTransfers, 
+            "amplitudeConstants" : amplitudeConstants
+        }
+
 
