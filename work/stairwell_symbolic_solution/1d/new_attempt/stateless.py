@@ -342,7 +342,7 @@ def makeCoefficentsFromHarmonicConstants(
     regionCoefficients = selectRegionCoefficients(from_, to)
     harmonicConstants = [
             symbolicToIdentifier(from_.harmonicConstant), 
-            symbolicToidentifier(to.harmonicConstant)
+            symbolicToIdentifier(to.harmonicConstant)
         ]
     transmission = 2 * from_.harmonicConstant \
             / (from_.harmonicConstant + to.harmonicConstant)
@@ -358,8 +358,8 @@ def makeCoefficentsFromHarmonicConstants(
             "inputs" : harmonicConstants, 
             "outputs" : identifiers, 
             "computations" : {
-                    identifiers[0] : sp.lambdify(transmission, harmonicConstants), 
-                    identifiers[1] : sp.lambdify(reflection, harmonicConstants)
+                    identifiers[0] : sp.lambdify(harmonicConstants, transmission), 
+                    identifiers[1] : sp.lambdify(harmonicConstants, reflection)
                 }
         }
 
