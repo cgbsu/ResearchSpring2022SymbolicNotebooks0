@@ -242,12 +242,21 @@ def inputCoefficients(functions, inputs, coefficients):
     assert len(waveFunctionInputs) == 2, "Insufficiant arguemnts for coefficents"
     return satisfiedArguments, waveFunctionInputs
 
-def performTransfersImplementation(transfers : list[dict], previousTransferValues, transferValues, coefficients : dict): 
+def performTransfersImplementation(
+            transfers : list[dict], 
+            previousTransferValues, 
+            transferValues, 
+            transmissionReflectionCoefficients : dict
+        ) -> dict: 
     functionData = transfers[0]['functionData']
     inputs = transfers[0]['matricies']['inputs']
     outputs = transfers[0]['matricies']['outputs']
     functions = functionData['functions']
-    satisfiedArguments, waveFunctionInputs = inputCoefficients(functions, inputs, coefficients[0])
+    satisfiedArguments, waveFunctionInputs = inputCoefficients(
+            functions, 
+            inputs, 
+            transmissionReflectionCoefficients[0]
+        )
     arguments, remainingArguments = satisfyParameterDict(waveFunctionInputs, previousTransferValues).values()
     assert len(remainingArguments) == 0, "Parameter not satisfied!"
     arguments = tuple(satisfiedArguments.values()) + tuple(arguments.values())
@@ -264,14 +273,23 @@ def performTransfersImplementation(transfers : list[dict], previousTransferValue
                 transfers[1:], 
                 thisTransferValues, 
                 transferValues, 
-                coefficients[1:]
+                transmissionReflectionCoefficients[1:]
             )
 
 
-def performTransfers(transfers : list[dict], initialTransmission, initialReflection, coefficients : dict): 
+def performTransfers(
+            transfers : list[dict], 
+            initialTransmission, 
+            initialReflection, 
+            transmissionReflectionCoefficients : dict
+        ) -> dict: 
     functions = transfers[0]['functionData']['functions']
     inputs = transfers[0]['matricies']['inputs']
-    satisfiedArguments, waveFunctionInputs = inputCoefficients(functions, inputs, coefficients[0])
+    satisfiedArguments, waveFunctionInputs = inputCoefficients(
+            functions, 
+            inputs, 
+            transmissionReflectionCoefficients[0]
+        )
     return performTransfersImplementation(
             transfers, 
             {
@@ -279,7 +297,7 @@ def performTransfers(transfers : list[dict], initialTransmission, initialReflect
                     waveFunctionInputs[1] : initialReflection
             }, 
             {}, 
-            coefficients
+            transmissionReflectionCoefficients
         )
 
 def satisfyParameterDict(parameters, inputMapping): 
@@ -290,7 +308,7 @@ def satisfyParameterDict(parameters, inputMapping):
         satisfied = parameter == parameters[0]
         parameters = parameters[1:]
         if satisfied == False: 
-            assert satisfied, ("satisfyParameters: Parameter not in parameter list or is not"
+            assert satisfied, ("satisfyParameters: Parameter not in parameter list or is not "
                     "the current parameter (parameter order must be preserved)!")
         else: 
             arguments[parameter] = argument
@@ -305,19 +323,47 @@ def defaultTransmissionReflectionCoefficientGenerator(
             symbolicToIdentifier(regionCoefficients.transmissionCoefficent), 
             symbolicToIdentifier(regionCoefficients.reflectionCoefficient)
         ]
-    identity = lambda identifier : sp.lambdify(identifier, sp.Symbol(identifier))
+    identity = lambda identifier : sp.lambdify(identifiers, sp.Symbol(identifier))
     return {
             "from" : from_, 
             "to" : to, 
             "inputs" : identifiers, 
-            "outputs" : regionCoefficients, 
+            "outputs" : identifiers, 
             "computations" : {
                     identifiers[0] : identity(identifiers[0]), 
                     identifiers[1] : identity(identifiers[1])
                 }
         }
 
-def generateBoundryTransferReflectionCoefficients(
+def makeCoefficentsFromHarmonicConstants(
+            from_ : RegionSymbols, 
+            to : RegionSymbols
+        ) -> dict:
+    regionCoefficients = selectRegionCoefficients(from_, to)
+    harmonicConstants = [
+            symbolicToIdentifier(from_.harmonicConstant), 
+            symbolicToidentifier(to.harmonicConstant)
+        ]
+    transmission = 2 * from_.harmonicConstant \
+            / (from_.harmonicConstant + to.harmonicConstant)
+    reflection =  (from_.harmonicConstant - to.harmonicConstant) \
+            / (from_.harmonicConstant + to.harmonicConstant)
+    identifiers = [
+            symbolicToIdentifier(regionCoefficients.transmissionCoefficent), 
+            symbolicToIdentifier(regionCoefficients.reflectionCoefficient)
+        ]
+    return {
+            "from" : from_, 
+            "to" : to, 
+            "inputs" : harmonicConstants, 
+            "outputs" : identifiers, 
+            "computations" : {
+                    identifiers[0] : sp.lambdify(transmission, harmonicConstants), 
+                    identifiers[1] : sp.lambdify(reflection, harmonicConstants)
+                }
+        }
+
+def generateBoundryTransmissionReflectionCoefficients(
             regionSymbols : list[RegionSymbols], 
             transmissionReflectionCoefficentGenerator 
                     = defaultTransmissionReflectionCoefficientGenerator
@@ -329,6 +375,19 @@ def generateBoundryTransferReflectionCoefficients(
                 ) \
             for ii in range(1, len(regionSymbols) - 1)
         ]
+
+def calculateBoundryTransmissionReflectionCoefficients(
+            calculators : list[dict], 
+            inputs : dict
+        ) -> dict: 
+    results = []
+    filterInputs = lambda calculator : {input_ : inputs[input_] for input_ in calculator["inputs"]}
+    for calculator in calculators: 
+        results.append({
+                output : calculator["computations"][output](**filterInputs(calculator)) \
+                for output in calculator["outputs"]
+            })
+    return results
 
 def generateGeneralTransferFunctions(numberOfRegions : int) -> dict: 
     transferFunctionData = {"regionSymbols" : [RegionSymbols(ii - 1) for ii in range(numberOfRegions + 2)]}
