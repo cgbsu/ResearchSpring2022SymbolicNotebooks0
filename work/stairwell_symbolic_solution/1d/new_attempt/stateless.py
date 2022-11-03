@@ -389,9 +389,10 @@ def calculateBoundryTransmissionReflectionCoefficients(
             })
     return results
 
-def generateGeneralTransferFunctions(numberOfRegions : int) -> dict: 
-    transferFunctionData = {"regionSymbols" : [RegionSymbols(ii - 1) for ii in range(numberOfRegions + 2)]}
-    regionSymbols = transferFunctionData["regionSymbols"]
+    return preliminaryData
+
+def generateGeneralTransferFunctions(regionSymbols : list[RegionSymbols]) -> dict: 
+    transferFunctionData = {}
     transferFunctionData["transfers"] = [
             generalTransfer(
                     regionSymbols[ii + 1], 
@@ -789,16 +790,86 @@ def generateAmplitudeCoefficientNumericalFunctions(
             "constantAmplitudeCalculations" : constantAmplitudeCalculations
         }
 
-#def makeWaveFunctionFromTransfer(transferData : dict, transfers : dict) -> dict: 
-#    calculation = transferData["transfer"].rhs
-#    transferData["transfer"] 
-#    nonNormalized = regionSymbols.constants[0] + regionSymbols.constants[1]
-#    symbolicBoundry = (nonNormalized * sp.conjugate(nonNormalized)).simplify().refine()
-#    outputs = transferData["outputs"]
-#    nonNormalizedNumericWave = transfers[outputs[0]] + transfers[outputs[1]]
-#    nonNormalizedNumericWave * np.conjugate(nonNormalizedNumericWave)
-#    return {
-#            "symbolic" : symbolicBoundry, 
-#            "numeric" : nonNormalizedNumericWave
-#        }
+def generateHarmonicConstantFunction(generalSolution : dict) -> dict: 
+    equation = generalSolution["harmonicConstantEquation"]
+    parameters = list(substituteIdentifierAtomsList(equation.rhs).values())
+    return {
+        "equation" : equation, 
+        "parameters" : parameters, 
+        "function" : sp.lambdify(parameters, equation.rhs)
+    }
+
+### Untested
+
+def createPreliminaryData(
+            numberOfRegions : int, 
+            customReducedPlanck : sp.Symbol = sq.Symbol(
+                    'hbarX', 
+                    real = True, 
+                    positive = True, 
+                    nonzero = True
+                ), 
+            transmissionReflectionGenerator 
+                    = defaultTransmissionReflectionCoefficientGenerator, 
+        ) -> dict: 
+    preliminaryData = {}
+    preliminaryData["transmissionReflectionGenerator"] = transmissionReflectionGenerator
+    regionSymbols = [RegionSymbols(ii - 1) for ii in range(numberOfRegions + 2)]
+    preliminaryData["regionSymbols"] = regionSymbols
+    preliminaryData["waveEquations"] = [
+            constantPotentialTimeIndependentSchroedingerEquation1D(
+                    regionSymbols[ii], 
+                    reducedPlanckConstant = customReducedPlanck
+                ) \
+            for ii in range(numberOfRegions)
+        ]
+    preliminaryData["normalizations"] = [
+            simpleWaveFunctionNormalization(
+                    regionSymbols[ii].startDistance, 
+                    regionSymbols[ii].distance, 
+                    regionSymbols[ii]
+                ) \
+            for ii in range(numberOfRegions)
+        ]
+    preliminaryData["generalSolutions"] = [
+            createGeneralSolution(
+                    regionSymbols[ii], 
+                    preliminaryData["waveEquations"][ii], 
+                    preliminaryData["normalizations"][ii]
+                ) \
+            for ii in range(numberOfRegions)
+        ]
+    return preliminaryData
+
+def solveForAmplitudeConstants(preliminaryData : dict) -> dict: 
+    regionSymbols = preliminaryData["regionSymbols"]
+    normalizations = preliminaryData["normalizations"]
+    generationCount = range(len(regionSymbols) - 2)
+    return [
+            generateAmplitudeCoefficientNumericalFunctions(
+                    regionSymbols[ii], 
+                    preliminaryData["waveEquations"][ii], 
+                    normalizations[ii]
+                ) \
+            for ii in generationCount
+        ]
+
+def generateRegionFunctions(preliminaryData : dict) -> dict:
+    regionSymbols = preliminaryData["regionSymbols"], 
+    transferFunctions = generateGeneralTransferFunctions(regionSymbols)
+    transmissionReflectionFunctions \
+            = generateBoundryTransmissionReflectionCoefficients(
+                    regionSymbols, 
+                    preliminaryData["transmissionReflectionGenerator"]
+                )
+    harmonicConstantFunctions = [
+            generateHarmonicConstantFunction(generalSolution) \
+            for generalSolution in preliminaryData["generalSolutions"]
+        ]
+    return {
+            "transferFunctions" : transferFunctions, 
+            "transmissionReflectionFunctions" : transmissionReflectionFunctions, 
+            "harmonicConstantFunctions" : harmonicConstantFunctions, 
+            "amplitudeConstantFunctions" : solveForAmplitudeConstants(preliminaryData)
+        }
 
