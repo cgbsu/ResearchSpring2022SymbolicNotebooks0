@@ -26,6 +26,18 @@ INVERSE_COEFFICIENT_TAG = "inverseCoefficent"
 OFFSET_TAG = "offset"
 SCALAR_TAG = "scalar"
 
+
+DEFAULT_IDENTIFIER_REPLACEMENT_LIST = {
+        '{' : "OCB", 
+        '}' : "CCB", 
+        '(' : "OP", 
+        ')' : "CP", 
+        '[' : "OSB", 
+        ']' : "CSB", 
+        '-' : "N", 
+        "Backslash" : "\\"
+    }
+
 def makeDistance(region): 
     return sp.Symbol(f'L_{region}', real = True, finite = True)
 
@@ -71,18 +83,9 @@ def orderNames(names, sortIndex = 0):
         results += ordered
     return results 
 
-def symbolicToIdentifier(symbolic):
+def symbolicToIdentifier(symbolic, 
+        replacementList = DEFAULT_IDENTIFIER_REPLACEMENT_LIST):
     identifier = str(symbolic)
-    replacementList = {
-            '{' : "OCB", 
-            '}' : "CCB", 
-            '(' : "OP", 
-            ')' : "CP", 
-            '[' : "OSB", 
-            ']' : "CSB", 
-            '-' : "N", 
-            "Backslash" : "\\"
-        }
     for toReplace, replacement in replacementList.items(): 
         identifier = identifier.replace(toReplace, replacement)
     return identifier
@@ -214,8 +217,6 @@ def generalTransferFromScatteringMatrix(from_, to, scatteringMatrix):
     transferMatrix = makeTransferMatrix(scatteringMatrix)
     input_ = makeBarrierMatrix(to)
     result = makeBarrierMatrix(from_)
-    print("to: ", input_)
-    print("from: ", result)
     transferMatrix["inputs"] += result["inputs"]
     transferMatrix["outputs"] = input_["inputs"]
     return {
@@ -735,8 +736,6 @@ def lambdifySolutionComponents(solution : dict) -> dict:
             )
         componentExpression = componentExpression.subs(substitutions)
         parameters = orderNames(list(substitutions.values()))
-        print("Parametes")
-        display(parameters)
         allParameters |= set(parameters)
         name = functionNameFromIdentifier(componentName)
         componentFunctions[name] = {
@@ -1011,9 +1010,6 @@ def computeSimulationConstants(
     boundryIndexedTransfers = makeBoundryMapping(
             preliminaryData["regionSymbols"], 
             transfers
-        )
-    print(
-            basicArguments | boundryIndexedTransfers | harmonicConstants
         )
     amplitudeConstants = computeAmplitudeConstants(
             regionFunctions, 

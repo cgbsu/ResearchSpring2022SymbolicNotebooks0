@@ -26,6 +26,18 @@ INVERSE_COEFFICIENT_TAG = "inverseCoefficent"
 OFFSET_TAG = "offset"
 SCALAR_TAG = "scalar"
 
+
+DEFAULT_IDENTIFIER_REPLACEMENT_LIST = {
+        '{' : "OCB", 
+        '}' : "CCB", 
+        '(' : "OP", 
+        ')' : "CP", 
+        '[' : "OSB", 
+        ']' : "CSB", 
+        '-' : "N", 
+        "Backslash" : "\\"
+    }
+
 def makeDistance(region): 
     return sp.Symbol(f'L_{region}', real = True, finite = True)
 
@@ -71,18 +83,9 @@ def orderNames(names, sortIndex = 0):
         results += ordered
     return results 
 
-def symbolicToIdentifier(symbolic):
+def symbolicToIdentifier(symbolic, 
+        replacementList = DEFAULT_IDENTIFIER_REPLACEMENT_LIST):
     identifier = str(symbolic)
-    replacementList = {
-            '{' : "OCB", 
-            '}' : "CCB", 
-            '(' : "OP", 
-            ')' : "CP", 
-            '[' : "OSB", 
-            ']' : "CSB", 
-            '-' : "N", 
-            "Backslash" : "\\"
-        }
     for toReplace, replacement in replacementList.items(): 
         identifier = identifier.replace(toReplace, replacement)
     return identifier
@@ -126,6 +129,8 @@ class RegionSymbols:
         self.reflectionCoefficents = makeFromToSymbol("R", self.regionIndex)
         self.next = RegionCoefficients(self.transmissionCoefficents["next"], self.reflectionCoefficents["next"])
         self.previous = RegionCoefficients(self.transmissionCoefficents["previous"], self.reflectionCoefficents["previous"])
+    def __str__(self): 
+        return "Region{" + str(self.regionIndex) + "}"
 
 def makeCoefficents(first, second): 
     transmission = (sp.Abs(second.constants[0]) ** 2) / (sp.Abs(first.constants[0]) ** 2)
@@ -215,8 +220,14 @@ def generalTransferFromScatteringMatrix(from_, to, scatteringMatrix):
     transferMatrix["inputs"] += result["inputs"]
     transferMatrix["outputs"] = input_["inputs"]
     return {
-            "from" : from_, 
-            "to" : to, 
+            "from" : {
+                    "region" : from_, 
+                    "matrix" : input_["matrix"]
+                }, 
+            "to" : {
+                    "region" : to, 
+                    "matrix" : result["matrix"]
+                }, 
             "matricies" : transferMatrix, 
             "transfer" : sp.Eq(input_["matrix"], transferMatrix["transferMatrix"] * result["matrix"])
         }
@@ -250,14 +261,14 @@ def inputCoefficients(functions, inputs, coefficients):
 
 def performTransfersImplementation(
             transfers : list[dict], 
-            previousTransferValues, 
-            transferValues, 
+            transferValues : list[dict], 
             transmissionReflectionCoefficients : dict
         ) -> dict: 
     functionData = transfers[0]['functionData']
     inputs = transfers[0]['matricies']['inputs']
     outputs = transfers[0]['matricies']['outputs']
     functions = functionData['functions']
+    previousTransferValues = transferValues[-1]["transferValues"]
     satisfiedArguments, waveFunctionInputs = inputCoefficients(
             functions, 
             inputs, 
@@ -267,17 +278,20 @@ def performTransfersImplementation(
     assert len(remainingArguments) == 0, "Parameter not satisfied!"
     arguments = tuple(satisfiedArguments.values()) + tuple(arguments.values())
     waveFunctions = tuple(functions.keys())
-    transferValues |= previousTransferValues
     thisTransferValues = {
-            outputs[0] : functions[waveFunctions[0]](*arguments), 
-            outputs[1] : functions[waveFunctions[1]](*arguments)
+            "from" : transfers[0]["from"], 
+            "to" : transfers[0]["to"], 
+            "transferValues" : {
+                    outputs[0] : functions[waveFunctions[0]](*arguments), 
+                    outputs[1] : functions[waveFunctions[1]](*arguments)
+                }
         }
+    transferValues.append(thisTransferValues)
     if len(transfers) <= 1:
-        return transferValues | thisTransferValues
+        return transferValues
     else: 
         return performTransfersImplementation(
                 transfers[1:], 
-                thisTransferValues, 
                 transferValues, 
                 transmissionReflectionCoefficients[1:]
             )
@@ -298,11 +312,14 @@ def performTransfers(
         )
     return performTransfersImplementation(
             transfers, 
-            {
-                    waveFunctionInputs[0] : initialTransmission, 
-                    waveFunctionInputs[1] : initialReflection
-            }, 
-            {}, 
+            [{
+                "from" : transfers[0]["from"], 
+                "to" : transfers[0]["to"], 
+                "transferValues" : {
+                        waveFunctionInputs[0] : initialTransmission, 
+                        waveFunctionInputs[1] : initialReflection
+                    }
+            }], 
             transmissionReflectionCoefficients
         )
 
@@ -714,9 +731,11 @@ def lambdifySolutionComponents(solution : dict) -> dict:
     allParameters = set()
     for componentName, component in solution.items(): 
         componentExpression = component["component"]
-        parameters = orderNames(list(
-                substituteIdentifierAtomsList(componentExpression).values()
-            ))
+        substitutions = substituteIdentifierAtomsList(
+                componentExpression
+            )
+        componentExpression = componentExpression.subs(substitutions)
+        parameters = orderNames(list(substitutions.values()))
         allParameters |= set(parameters)
         name = functionNameFromIdentifier(componentName)
         componentFunctions[name] = {
@@ -742,8 +761,10 @@ def generateNumericalFunctionFromGeneralFunctionAndComponents(
     def calculate(**kwargs): 
         generalFunctionArguments = {}
         for componentName, component in components.items(): 
-            componentArguments = {parameter : kwargs[parameter] \
-                    for parameter in component["parameters"]}
+            componentArguments = {
+                    parameter : kwargs[parameter] \
+                    for parameter in component["parameters"]
+                }
             generalFunctionArguments[componentName] \
                     = component["function"](**componentArguments)
         return solution["generalFunction"](**generalFunctionArguments)
@@ -887,33 +908,44 @@ def generateRegionFunctions(preliminaryData : dict) -> dict:
             "amplitudeConstantFunctions" : solveForAmplitudeConstants(preliminaryData)
         }
 
-#def makeBoundry(regionSymbol, transfer): 
-    
-    
+def makeBoundry(transfer : dict): 
+    fromBarrier = transfer["from"]["matrix"]
+    fromRegion = transfer["from"]["region"]
+    toRegion = transfer["to"]["region"]
+    location = fromBarrier[0].args[0]
+    function = fromBarrier[0].func
+    #fromBarrier.row(0).col(0).args[0]
+    boundrySymbol = toRegion.waveFunction(location)
+    transferValue = 0.0
+    for value in list(transfer["transferValues"].values()): 
+        transferValue += value
+    return {
+            "symbol" : boundrySymbol, 
+            "value" : transferValue, 
+            "transfer" : transfer
+        }
 
 def makeBoundryMapping(
             regionSymbols : list[RegionSymbols], 
             transfers : dict, 
             substitutionGenerator = makeBoundryWaveComponentSubstitutions
         ): 
+    transfers_ = [makeBoundry(transfer) for transfer in transfers]
     boundrySubstitions_ = [
             makeBoundryWaveComponentSubstitutions(region) \
                     for region in regionSymbols
         ]
-    print("B Sub: ", boundrySubstitions_)
     boundrySubstitions = {}
     for substitutions in boundrySubstitions_: 
         for key, value in substitutions.items(): 
             boundrySubstitions[key] = value
-    print("Sub table: ", boundrySubstitions)
     newTransfers = {}
-    for key, value in transfers.items(): 
-        print("Outer: ", key, value)
+    for transfer in transfers_: 
+        identifier = symbolicToIdentifier(transfer["symbol"])
         for match, replacement in boundrySubstitions.items(): 
-            print("Inner: ", match, replacement, key)
-            if match == key: 
-                newTransfers[replacement] = value
-                print("match")
+            if match == identifier: 
+                replacementIdentifier = symbolicToIdentifier(replacement)
+                newTransfers[replacementIdentifier] = transfer["value"]
                 break
     return newTransfers
 
@@ -923,7 +955,6 @@ def computeTransferConstantsFromHarmonicConsants(
             initialReflection : float, 
             transmissionReflectionCoefficientArguments : dict
         ) -> dict: 
-    display(transmissionReflectionCoefficientArguments)
     transmissionReflectionCoefficients \
             = calculateBoundryTransmissionReflectionCoefficients(
                     regionFunctions["transmissionReflectionFunctions"], 
@@ -947,17 +978,12 @@ def computeAmplitudeConstants(
     for regionalConstantFunctions in constantRegionFunctions: 
         constantAmplitudeCalculators \
                 = regionalConstantFunctions["constantAmplitudeCalculations"]
-        test = list(constantAmplitudeCalculators.keys())[0]
-        display(test)
-        sol = constantAmplitudeCalculators[symbolicToIdentifier(test)][0]
-        display(list(sol.keys()))
-        display(sol)
         for constant, solutions in constantAmplitudeCalculators.items(): 
              #newSolution = constantAmplitudeCalculators[symbolicToIdentifier(constant)]
              amplitudeConstantValues[constant] = [
                     solution["function"](**arguments) \
                     for solution in solutions
-             ]
+                ]
     return amplitudeConstantValues
 
 def computeSimulationConstants(
@@ -975,10 +1001,6 @@ def computeSimulationConstants(
                         ) \
             for functionData in regionFunctions["harmonicConstantFunctions"]
         }
-    display(basicArguments)
-    display(harmonicConstants)
-    display(basicArguments | harmonicConstants)
-    print("I AM A GIRAFFE!!!")
     transfers = computeTransferConstantsFromHarmonicConsants(
             regionFunctions, 
             initialTransmission, 
@@ -989,10 +1011,6 @@ def computeSimulationConstants(
             preliminaryData["regionSymbols"], 
             transfers
         )
-    print("BAT", len(transfers))
-    display(list(boundryIndexedTransfers .keys()))
-    print("ARGS")
-    display(basicArguments | boundryIndexedTransfers | harmonicConstants)
     amplitudeConstants = computeAmplitudeConstants(
             regionFunctions, 
             basicArguments | boundryIndexedTransfers | harmonicConstants
