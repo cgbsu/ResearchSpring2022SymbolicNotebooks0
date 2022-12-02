@@ -1,0 +1,9 @@
+\left[\begin{matrix}
+	\psi_{n_t}{\left(L_{n - 1} \right)} \\
+	\psi_{n_r}{\left(L_{n - 1} \right)}
+\end{matrix}\right] 
+= 
+\left[\begin{matrix}
+	\frac{\sqrt{R_{{n + 1}, n}} \psi_{{n + 1}_r}{\left(L_{n} \right)}}{\sqrt{\overline{T_{{n + 1}, n}}}} + \left(- \frac{\sqrt{R_{{n + 1}_1}} \sqrt{\overline{R_{{n + 1}, n}}}}{\sqrt{\overline{T_{{n + 1}, n}}}} + \sqrt{T_{{n + 1}, n}}\right) \psi_{{n + 1}_t}{\left(L_{n} \right)} \\
+	\frac{\psi_{{n + 1}_r}{\left(L_{n} \right)}}{\sqrt{\overline{T_{{n + 1}, n}}}} - \frac{\psi_{{n + 1}_t}{\left(L_{n} \right)} \sqrt{\overline{R_{{n + 1}, n}}}}{\sqrt{\overline{T_{{n + 1}, n}}}}
+\end{matrix}\right]

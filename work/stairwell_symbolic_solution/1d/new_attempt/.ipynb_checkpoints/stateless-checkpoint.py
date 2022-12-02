@@ -3,6 +3,7 @@ import sympy.physics.units.quantities as sq
 from sympy.physics.quantum.constants import hbar
 import copy
 from collections import OrderedDict
+from dataclasses import dataclass
 import inspect
 
 PSI_FUNCTION = sp.Function("psi")
@@ -205,9 +206,9 @@ def makeBarrierMatrix(from_ : RegionSymbols):
                 ])
         }
 
-def transferWithHarmonicConstants(from_, to): 
-    transmission, reflection = makeCoefficentsFromHarmonicConstants(from_, to)
-    scatteringMatrix = makeScatteringMatrix(transmission, reflection)
+def transferWithHarmonicConstants(from_, to):  
+    results = makeCoefficentsFromHarmonicConstants(from_, to)
+    scatteringMatrix = makeScatteringMatrix(from_, to, RegionCoefficients(results["transmission"], results["reflection"]))
     return generalTransferFromScatteringMatrix(from_, to, scatteringMatrix)
 
 def generalTransfer(from_, to): 
@@ -383,7 +384,9 @@ def makeCoefficentsFromHarmonicConstants(
             "computations" : {
                     identifiers[0] : sp.lambdify(harmonicConstants, transmission), 
                     identifiers[1] : sp.lambdify(harmonicConstants, reflection)
-                }
+                }, 
+            "transmission" : transmission, 
+            "reflection" : reflection
         }
 
 def generateBoundryTransmissionReflectionCoefficients(
@@ -979,8 +982,8 @@ def computeAmplitudeConstants(
         constantAmplitudeCalculators \
                 = regionalConstantFunctions["constantAmplitudeCalculations"]
         for constant, solutions in constantAmplitudeCalculators.items(): 
-             #newSolution = constantAmplitudeCalculators[symbolicToIdentifier(constant)]
-             amplitudeConstantValues[constant] = [
+            #newSolution = constantAmplitudeCalculators[symbolicToIdentifier(constant)]
+            amplitudeConstantValues[constant] = [
                     solution["function"](**arguments) \
                     for solution in solutions
                 ]
@@ -1022,4 +1025,56 @@ def computeSimulationConstants(
             "amplitudeConstants" : amplitudeConstants
         }
 
+# Some helper functions
 
+def getHarmonicConstants(regions : list[RegionSymbols]) -> list[sp.Symbol]: 
+    return [region.harmonicConstant for region in regions]
+
+def makeBoundrySets(generalSolutions : list[dict]) -> set[sp.Symbol]: 
+    return [set(generalSolution["boundries"].values()) for generalSolution in generalSolutions]
+
+def getBoundries(generalSolutions : list[dict]) -> list[sp.Symbol]: 
+    boundrySets = makeBoundrySets(generalSolutions)
+    boundries = {}
+    for boundrySet in boundrySets: 
+        boundries |= {str(symbol) : symbol for symbol in list(boundrySet)}
+    boundries = [boundries[name] for name in orderNames(list(boundries.keys()))]
+    return boundries
+
+def getUnkownBoundries(generalSolutions : list[dict]) -> set[sp.Symbol]: 
+    boundrySets = makeBoundrySets(generalSolutions)
+    unkownBoundries = [boundrySets[ii + 1] & boundrySets[ii] for ii in range(len(boundrySets) - 1)]
+    unkownBoundriesSet = set()
+    for unkownBoundrySet in unkownBoundries: 
+        unkownBoundriesSet |= unkownBoundrySet
+    return unkownBoundriesSet
+
+def getLengths(regionSymbols : list[RegionSymbols]) -> list[sp.Symbol]: 
+    return [region.distance for region in regionSymbols]
+
+def getHarmonicConstants(regions : list[RegionSymbols]) -> list[sp.Symbol]: 
+    return [region.harmonicConstant for region in regions]
+
+@dataclass
+class BoundrySymbols: 
+    boundry : sp.Symbol
+    harmonicConstant : sp.Symbol
+    length : sp.Symbol
+
+def makeBoundrySymbols(
+            boundries : list[sp.Symbol], 
+            harmonicConstants : list[sp.Symbol], 
+            lengths : list[sp.Symbol]
+        ) -> list[BoundrySymbols]: 
+    return tuple(BoundrySymbols(symbols[0], symbols[1], symbols[2]) \
+                 for symbols in zip(boundries, harmonicConstants, lengths)
+            )
+
+def makeBoundrySymbolsFromPreliminaryData(preliminaryData : dict) -> list[BoundrySymbols]: 
+    generalSolutions = preliminaryData["generalSolutions"]
+    regionSymbols = preliminaryData["regionSymbols"]
+    return makeBoundrySymbols(
+            getBoundries(generalSolutions), 
+            getHarmonicConstants(regionSymbols), 
+            getLengths(regionSymbols)
+        )
