@@ -18,7 +18,7 @@ from scipy.linalg import eigh_tridiagonal
 
 
 
-defaultScalingFactor : float = 1000
+defaultScalingFactor : float = 1
 
 defaultReducedPlancksConstant : float = 1
 
@@ -116,3 +116,23 @@ def computeWaveFunction(
             "energies" : energies, 
             "waveFunctions" : waveFunctions.T
         }
+
+def stairwell(
+            normalizedPositions : np.array, 
+            unitLength : float, 
+            unitPotentialHeight : float, 
+            lengthRatios : list[float], 
+            potentialStepHeigthRatios : list[float]
+        ) -> np.array: 
+    potentials = np.zeros(len(normalizedPositions))
+    lengths = [ratio * unitLength for ratio in ([0] + lengthRatios)]
+    potentialHeights = [ratio * unitPotentialHeight for ratio in ([0] + potentialStepHeigthRatios)]
+    for ii in range(1, len(potentialHeights)):
+        potentials = np.where(
+                ~((normalizedPositions >= lengths[ii - 1])
+                        & (normalizedPositions < lengths[ii])), 
+                potentials, 
+                potentialHeights[ii]
+            )
+    return potentials  
+
