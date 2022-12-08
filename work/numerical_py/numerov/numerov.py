@@ -1,13 +1,8 @@
 import types
-
 from functools import partial
-
 import sympy as sp
-
 import numpy as np
-
 import matplotlib.pyplot as plt
-
 from scipy.linalg import eigh_tridiagonal
 
 
@@ -19,13 +14,9 @@ from scipy.linalg import eigh_tridiagonal
 
 
 defaultScalingFactor : float = 1
-
 defaultReducedPlancksConstant : float = 1
-
 defaultMass : float = 1.0
-
 defaultLength : float = 1.0
-
 defaultUnormalizedPositionStep : float = 1e-3
 
 def unormalizedPotentialTerm(
