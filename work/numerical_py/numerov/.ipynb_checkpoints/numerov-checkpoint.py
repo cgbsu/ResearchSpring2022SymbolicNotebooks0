@@ -1,13 +1,8 @@
 import types
-
 from functools import partial
-
 import sympy as sp
-
 import numpy as np
-
 import matplotlib.pyplot as plt
-
 from scipy.linalg import eigh_tridiagonal
 
 
@@ -18,14 +13,10 @@ from scipy.linalg import eigh_tridiagonal
 
 
 
-defaultScalingFactor : float = 1000
-
+defaultScalingFactor : float = 1
 defaultReducedPlancksConstant : float = 1
-
 defaultMass : float = 1.0
-
 defaultLength : float = 1.0
-
 defaultUnormalizedPositionStep : float = 1e-3
 
 def unormalizedPotentialTerm(
@@ -116,3 +107,43 @@ def computeWaveFunction(
             "energies" : energies, 
             "waveFunctions" : waveFunctions.T
         }
+
+def stairwell(
+            normalizedPositions : np.array, 
+            unitLength : float, 
+            unitPotentialHeight : float, 
+            lengthRatios : list[float], 
+            potentialStepHeigthRatios : list[float]
+        ) -> np.array: 
+    potentials = np.zeros(len(normalizedPositions))
+    lengths = [ratio * unitLength for ratio in ([0] + lengthRatios)]
+    potentialHeights = [ratio * unitPotentialHeight for ratio in ([0] + potentialStepHeigthRatios)]
+    for ii in range(1, len(potentialHeights)):
+        potentials = np.where(
+                ~((normalizedPositions >= lengths[ii - 1])
+                        & (normalizedPositions < lengths[ii])), 
+                potentials, 
+                potentialHeights[ii]
+            )
+    return potentials  
+
+def constantPotentialsWithWidths( 
+            normalizedPositions : np.array, 
+            unitWidth : float, 
+            unitPotentialHeight : float, 
+            widthRatios : list[float], 
+            potentialStepHeigthRatios : list[float]
+        ) -> np.array: 
+    potentials = np.zeros(len(normalizedPositions))
+    widths = [ratio * unitWidth for ratio in widthRatios]
+    potentialHeights = [ratio * unitPotentialHeight for ratio in potentialStepHeigthRatios]
+    length = 0
+    for ii in range(len(potentialHeights)):
+        potentials = np.where(
+                ~((normalizedPositions >= length)
+                        & (normalizedPositions < (length + widths[ii]))), 
+                potentials, 
+                potentialHeights[ii]
+            )
+        length += widths[ii]
+    return potentials  
