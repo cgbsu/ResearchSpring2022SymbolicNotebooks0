@@ -1,0 +1,83 @@
+material = 2.085136
+material = 2.085136
+material = 2.085136
+material = 2.085136
+material = 2.085136
+material = 2.085136
+material = 12.6025
+material = 12.6025
+material = 12.6025
+ADDING FLUX MONITORS
+RUNNING SIMULATION
+-----------
+Initializing structure...
+time for choose_chunkdivision = 0.00103188 s
+Working in 3D dimensions.
+Computational cell is 3 x 4 x 20.45 with resolution 20
+     prism, center = (0,-1.055,-5.225)
+          height 1.89, axis (0,1,0), sidewall angle: 0 radians, 4 vertices:
+          (1.5,-2,-10.225)
+          (1.5,-2,-0.225)
+          (-1.5,-2,-0.225)
+          (-1.5,-2,-10.225)
+          dielectric constant epsilon diagonal = (2.08514,2.08514,2.08514)
+     prism, center = (0,1.055,0)
+          height 1.89, axis (0,1,0), sidewall angle: 0 radians, 4 vertices:
+          (-1.5,0.11,-0.225)
+          (1.5,0.11,-0.225)
+          (1.5,0.11,0.225)
+          (-1.5,0.11,0.225)
+          dielectric constant epsilon diagonal = (2.08514,2.08514,2.08514)
+     prism, center = (0,0.97,-5.225)
+          height 2.06, axis (0,1,0), sidewall angle: 0 radians, 4 vertices:
+          (1.5,-0.06,-10.225)
+          (1.5,-0.06,-0.225)
+          (-1.5,-0.06,-0.225)
+          (-1.5,-0.06,-10.225)
+          dielectric constant epsilon diagonal = (2.08514,2.08514,2.08514)
+     prism, center = (0,-1.055,5.225)
+          height 1.89, axis (0,1,0), sidewall angle: 0 radians, 4 vertices:
+          (-1.5,-2,10.225)
+          (-1.5,-2,0.225)
+          (1.5,-2,0.225)
+          (1.5,-2,10.225)
+          dielectric constant epsilon diagonal = (2.08514,2.08514,2.08514)
+     prism, center = (0,-1.055,0)
+          height 1.89, axis (0,1,0), sidewall angle: 0 radians, 4 vertices:
+          (-1.5,-2,-0.225)
+          (1.5,-2,-0.225)
+          (1.5,-2,0.225)
+          (-1.5,-2,0.225)
+          dielectric constant epsilon diagonal = (2.08514,2.08514,2.08514)
+     prism, center = (0,0.97,5.225)
+          height 2.06, axis (0,1,0), sidewall angle: 0 radians, 4 vertices:
+          (-1.5,-0.06,10.225)
+          (-1.5,-0.06,0.225)
+          (1.5,-0.06,0.225)
+          (1.5,-0.06,10.225)
+          dielectric constant epsilon diagonal = (2.08514,2.08514,2.08514)
+     prism, center = (0,-0.085,-5.225)
+          height 0.05, axis (0,1,0), sidewall angle: 0 radians, 4 vertices:
+          (1.5,-0.11,-10.225)
+          (1.5,-0.11,-0.225)
+          (-1.5,-0.11,-0.225)
+          (-1.5,-0.11,-10.225)
+          dielectric constant epsilon diagonal = (12.6025,12.6025,12.6025)
+     prism, center = (0,-2.08167e-16,0)
+          height 0.22, axis (0,1,0), sidewall angle: 0 radians, 4 vertices:
+          (-1.5,-0.11,-0.225)
+          (1.5,-0.11,-0.225)
+          (1.5,-0.11,0.225)
+          (-1.5,-0.11,0.225)
+          dielectric constant epsilon diagonal = (12.6025,12.6025,12.6025)
+     prism, center = (0,-0.085,5.225)
+          height 0.05, axis (0,1,0), sidewall angle: 0 radians, 4 vertices:
+          (-1.5,-0.11,10.225)
+          (-1.5,-0.11,0.225)
+          (1.5,-0.11,0.225)
+          (1.5,-0.11,10.225)
+          dielectric constant epsilon diagonal = (12.6025,12.6025,12.6025)
+subpixel-averaging is 44.6913% done, 4.95646 s remaining
+subpixel-averaging is 89.0468% done, 0.492467 s remaining
+subpixel-averaging is 44.3553% done, 5.01885 s remaining
+subpixel-averaging is 88.3747% done, 0.527576 s remaining
