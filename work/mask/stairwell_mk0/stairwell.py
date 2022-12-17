@@ -52,13 +52,17 @@ def single_stairwell_rods(
             total_length = CHIP_TOTAL_WIDTH, 
             width = 7, 
             staggered_pad_width = 100, 
-            offset_from_staggered_pad = 10
+            offset_from_staggered_pad = 10, 
+            route_seperation_factor = 50, 
+            pad_width_millimeters = 10, 
+            pad_length_millimeters = 3
         ): 
     total_stairwell_pad_length = mean_life_time * speed_of_light * lifetime_to_bondpad_length_ratio
     print("Stairwell Pad Length: ", total_stairwell_pad_length)
     print("Total Length: ", total_length)
     staggered_pad_template = cc.StaggeredMetalTemplate()
     grid_template = cc.RectangleGrid2DTemplate(lattice_constant, radius)
+    metal_template = pc.MetalTemplate()
     top_stairwell_pad_position = staggered_pad_width * 2
     left_stairwell_pad_position = total_length / (len(segment_length_ratios) + 2)
     if (left_stairwell_pad_position + total_stairwell_pad_length) > total_length: 
@@ -91,6 +95,34 @@ def single_stairwell_rods(
                             - (offset_from_staggered_pad * 2) - defect_layer_index
                 )
         )
+    voltage_input_path = pc.MetalRoute([
+            (0, top_stairwell_pad_position * route_seperation_factor), 
+            (left_stairwell_pad_position, top_stairwell_pad_position * route_seperation_factor), 
+            anode_pad.port
+        ], metal_template)
+    output_pad_start = cathode_pad.port[1] \
+                - staggered_pad_width \
+                - anode_pad.maxCladdingWidth \
+                - top_stairwell_pad_position * route_seperation_factor 
+    voltage_output_path = pc.MetalRoute([
+                    (0, output_pad_start), 
+                    (left_stairwell_pad_position, output_pad_start), 
+                    cathode_pad.port
+            ], 
+            metal_template
+        )
+    voltage_input_bondpad = pc.Bondpad(
+            metal_template, 
+            width = pad_width_millimeters * MICROMETERS_IN_MILLIMETER, 
+            length = pad_length_millimeters * MICROMETERS_IN_MILLIMETER, 
+            **voltage_input_path.portlist["input"]
+        )
+    voltage_output_bondpad = pc.Bondpad(
+            metal_template, 
+            width = pad_width_millimeters * MICROMETERS_IN_MILLIMETER, 
+            length = pad_length_millimeters * MICROMETERS_IN_MILLIMETER, 
+            **voltage_output_path.portlist["input"]
+        )
     wave_guide_grid = cc.RectangularGrid2D(
             grid_template, 
             (extent_x_index, width), 
@@ -107,6 +139,10 @@ def single_stairwell_rods(
     tk.add(top, wave_guide_grid)
     tk.add(top, anode_pad)
     tk.add(top, cathode_pad)
+    tk.add(top, voltage_input_path)
+    tk.add(top, voltage_output_path)
+    tk.add(top, voltage_input_bondpad)
+    tk.add(top, voltage_output_bondpad)
 
 def main(): 
     wave_length = 1550 * (NANOMETERS_IN_METERS / UNITS)
@@ -130,7 +166,7 @@ def main():
     print("Done generating geometry")
     tk.build_mask(top, OBLIGITORY_WAVE_GUIDE_TEMPLATE, final_layer = 200, final_datatype = 0)
     print("Done building mask, writing file")
-    gdspy.write_gds('stairwell_mk0_static_with_gridded_wave_guide_first_mask.gds', unit=1.0e-6, precision=1.0e-9)
+    #gdspy.write_gds('stairwell_mk0_static_with_gridded_wave_guide_first_mask.gds', unit=1.0e-6, precision=1.0e-9)
     print("Done writing file.")
     gdspy.LayoutViewer()
 
