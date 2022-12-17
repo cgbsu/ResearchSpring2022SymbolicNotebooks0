@@ -64,7 +64,12 @@ def single_stairwell_rods(
     if (left_stairwell_pad_position + total_stairwell_pad_length) > total_length: 
         assert total_stairwell_pad_length < total_length, "Stairwell too long for this chip (assuming speed of light in vaccume)!"
         left_stairwell_pad_position = (total_length - total_stairwell_pad_length) / 2
+    extent_x_index = int(round(total_length / lattice_constant))
+    defect_layer_index = int(np.floor(width / 2))
     print("Stairwell Left Pad Position: ", left_stairwell_pad_position)
+    print("Total length: ", total_length)
+    print("Extent Count: ", extent_x_index)
+    print("Defect Layer Index: ", defect_layer_index)
     anode_pad = cc.StaggeredBondpad(
             staggered_pad_template, 
             total_stairwell_pad_length, 
@@ -73,22 +78,35 @@ def single_stairwell_rods(
             segment_length_ratios, 
             port = (left_stairwell_pad_position, top_stairwell_pad_position)
         )
-    extent_x_index = int(round(total_length / lattice_constant))
-    defect_layer_index = int(np.floor(width / 2))
-    print("Total length: ", total_length)
-    print("Extent Count: ", extent_x_index)
-    print("Defect Layer Index: ", defect_layer_index)
+    cathode_pad = cc.StaggeredBondpad(
+            staggered_pad_template, 
+            total_stairwell_pad_length, 
+            staggered_pad_width, 
+            potential_height_ratios, 
+            segment_length_ratios, 
+            port = (
+                    left_stairwell_pad_position, 
+                    top_stairwell_pad_position - staggered_pad_width \
+                            - (anode_pad.maxCladdingWidth * 2) \
+                            - (offset_from_staggered_pad * 2) - defect_layer_index
+                )
+        )
     wave_guide_grid = cc.RectangularGrid2D(
             grid_template, 
             (extent_x_index, width), 
             [(-1, defect_layer_index)], 
             position = (
                     0, 
-                    top_stairwell_pad_position - (staggered_pad_width / 2) - anode_pad.maxCladdingWidth - defect_layer_index - offset_from_staggered_pad  
+                    top_stairwell_pad_position \
+                            - (staggered_pad_width / 2) \
+                            - anode_pad.maxCladdingWidth \
+                            - defect_layer_index \
+                            - offset_from_staggered_pad  
                 )
         )
     tk.add(top, wave_guide_grid)
     tk.add(top, anode_pad)
+    tk.add(top, cathode_pad)
 
 def main(): 
     wave_length = 1550 * (NANOMETERS_IN_METERS / UNITS)
@@ -112,8 +130,8 @@ def main():
     print("Done generating geometry")
     tk.build_mask(top, OBLIGITORY_WAVE_GUIDE_TEMPLATE, final_layer = 200, final_datatype = 0)
     print("Done building mask, writing file")
-    #gdspy.write_gds('tutorial.gds', unit=1.0e-6, precision=1.0e-9)
-    #print("Done writing file.")
+    gdspy.write_gds('stairwell_mk0_static_with_gridded_wave_guide_first_mask.gds', unit=1.0e-6, precision=1.0e-9)
+    print("Done writing file.")
     gdspy.LayoutViewer()
 
 if __name__ == "__main__": 
