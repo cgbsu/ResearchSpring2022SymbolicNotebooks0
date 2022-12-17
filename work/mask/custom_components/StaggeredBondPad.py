@@ -1,6 +1,7 @@
 import gdspy
 from picwriter import toolkit as tk
-import StaggeredMetalTemplate as smt
+import custom_components as cc
+import numpy as np
 
 # Based off of the Bondpad class from https://github.com/DerekK88/PICwriter/blob/master/picwriter/components/electrical.py
 class StaggeredBondpad(tk.Component):
@@ -21,7 +22,7 @@ class StaggeredBondpad(tk.Component):
 
     def __init__(
                 self, 
-                template : smt.StaggeredMetalTemplate, 
+                template : cc.StaggeredMetalTemplate, 
                 length=150, 
                 width=100, 
                 potentialRatios = [1, 2 / 3, 1 / 3], 
@@ -48,7 +49,7 @@ class StaggeredBondpad(tk.Component):
         self.staggaredThickness = staggaredThickness 
         self.staggaredCladding = staggaredCladding 
         self.staggaredWidth = staggaredWidth 
-
+        self.maxCladdingWidth = self.template.clad_width * np.max(np.array(self.potentialRatios))
         self.spec = {"layers": template.metal_layers, "datatype": template.metal_datatype}
         self.clad_spec = {"layers": template.clad_layers, "datatype": template.clad_datatype}
 
@@ -67,7 +68,8 @@ class StaggeredBondpad(tk.Component):
         for ii in range(len(self.lengthRatios)): 
                 width = (self.width * self.potentialRatios[ii]) if self.staggaredWidth else self.width
                 claddingWidth = self.template.clad_width * self.potentialRatios[ii] if self.staggaredCladding else self.template.clad_width
-                length = scanLength + (self.lengthRatios[ii] * self.length)
+                nextLength = (self.lengthRatios[ii] * self.length)
+                length = scanLength + nextLength
                 self.add(gdspy.Rectangle(
                         (scanLength, -width / 2.0), 
                         (length, width / 2.0), 
@@ -94,7 +96,7 @@ if __name__ == "__main__":
     import picwriter.components as pc
     waveGuideTemplate = pc.WaveguideTemplate()
     waveguide = pc.Waveguide([(0, 500), (1000, 500)], waveGuideTemplate)
-    staggaredMetalTemplate = smt.StaggeredMetalTemplate()
+    staggaredMetalTemplate = cc.StaggeredMetalTemplate()
     thicknessStaggardBondPad = StaggeredBondpad(staggaredMetalTemplate)
     widthStaggardBondPad = StaggeredBondpad(
             staggaredMetalTemplate, 
