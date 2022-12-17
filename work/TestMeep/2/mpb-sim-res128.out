@@ -1,0 +1,311 @@
+Initializing eigensolver data
+Computing 1 bands with 1e-07 tolerance
+Working in 3 dimensions.
+Grid size is 1 x 384 x 384.
+Solving for 1 bands at a time.
+Creating Maxwell data...
+Mesh size is 3.
+Lattice vectors:
+     (1, 0, 0)
+     (0, 3, 0)
+     (0, 0, 3)
+Cell volume = 9
+Reciprocal lattice vectors (/ 2 pi):
+     (1, -0, 0)
+     (-0, 0.333333, -0)
+     (0, -0, 0.333333)
+Geometric objects:
+     block, center = (0,-1.055,0)
+          size (1e+20,1.89,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-9.71445e-17,0)
+          size (1e+20,0.22,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,1.055,0)
+          size (1e+20,1.89,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-1.055,5.225)
+          size (1e+20,1.89,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-1.055,-5.225)
+          size (1e+20,1.89,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-0.085,5.225)
+          size (1e+20,0.05,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-0.085,-5.225)
+          size (1e+20,0.05,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,0.97,5.225)
+          size (1e+20,2.06,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,0.97,-5.225)
+          size (1e+20,2.06,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+Geometric object tree has depth 5 and 72 object nodes (vs. 9 actual objects)
+Initializing epsilon function...
+Allocating fields...
+Solving for band polarization: zodd.
+Initializing fields to random numbers...
+1 k-points
+  Vector3<1.303225806451613, 0.0, 0.0>
+elapsed time for initialization: 0.15998554229736328
+solve_kpoint (1.30323,0,0):
+zoddfreqs:, k index, k1, k2, k3, kmag/2pi, zodd band 1
+Solving for bands 1 to 1...
+    near maximum in trace
+    linmin: converged after 8 iterations.
+    iteration    1: trace = 5.082773545628574 (198.449% change)
+    linmin: converged after 8 iterations.
+    iteration    2: trace = 1.099603840526981 (128.856% change)
+    linmin: converged after 6 iterations.
+    iteration    3: trace = 0.7170523815473525 (42.116% change)
+    linmin: converged after 6 iterations.
+    iteration    4: trace = 0.5684088283101624 (23.1269% change)
+    linmin: converged after 5 iterations.
+    iteration    5: trace = 0.5382157010373461 (5.4568% change)
+    linmin: converged after 4 iterations.
+    iteration    6: trace = 0.5295080351615137 (1.63107% change)
+    linmin: converged after 3 iterations.
+    iteration    7: trace = 0.5274928006057674 (0.381312% change)
+    linmin: converged after 4 iterations.
+    iteration    8: trace = 0.5254083791525751 (0.395939% change)
+    linmin: converged after 4 iterations.
+    iteration    9: trace = 0.522538536521593 (0.547708% change)
+    linmin: converged after 4 iterations.
+    iteration   10: trace = 0.5198163874262648 (0.522308% change)
+    linmin: converged after 4 iterations.
+    iteration   11: trace = 0.5185477288707384 (0.244357% change)
+    linmin: converged after 3 iterations.
+    iteration   12: trace = 0.5178311210030007 (0.138291% change)
+    linmin: converged after 3 iterations.
+    iteration   13: trace = 0.517400003917392 (0.0832891% change)
+    linmin: converged after 3 iterations.
+    iteration   14: trace = 0.5172460050029956 (0.0297684% change)
+    linmin: converged after 3 iterations.
+    iteration   15: trace = 0.51719695948709 (0.0094825% change)
+    linmin: converged after 2 iterations.
+    iteration   16: trace = 0.517185052692512 (0.0023022% change)
+    linmin: converged after 2 iterations.
+    iteration   17: trace = 0.5171814846329511 (0.000689902% change)
+    linmin: converged after 2 iterations.
+    iteration   18: trace = 0.5171807273393215 (0.000146427% change)
+    linmin: converged after 2 iterations.
+    iteration   19: trace = 0.5171805221316366 (3.96781e-05% change)
+    linmin: converged after 2 iterations.
+    iteration   20: trace = 0.5171804648852658 (1.10689e-05% change)
+    linmin: converged after 2 iterations.
+    iteration   21: trace = 0.5171804268142879 (7.36126e-06% change)
+Finished solving for bands 1 to 1 after 21 iterations.
+zoddfreqs:, 1, 1.30323, 0, 0, 1.30323, 0.719153
+elapsed time for k point: 2.8150641918182373
+total elapsed time for run: 2.9751439094543457
+done
+find-k 1 at 1.303225806451613: 0.07399128515378428
+Initializing eigensolver data
+Computing 1 bands with 1e-07 tolerance
+Working in 3 dimensions.
+Grid size is 1 x 384 x 384.
+Solving for 1 bands at a time.
+Creating Maxwell data...
+Mesh size is 3.
+Lattice vectors:
+     (1, 0, 0)
+     (0, 3, 0)
+     (0, 0, 3)
+Cell volume = 9
+Reciprocal lattice vectors (/ 2 pi):
+     (1, -0, 0)
+     (-0, 0.333333, -0)
+     (0, -0, 0.333333)
+Geometric objects:
+     block, center = (0,-1.055,0)
+          size (1e+20,1.89,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-9.71445e-17,0)
+          size (1e+20,0.22,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,1.055,0)
+          size (1e+20,1.89,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-1.055,5.225)
+          size (1e+20,1.89,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-1.055,-5.225)
+          size (1e+20,1.89,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-0.085,5.225)
+          size (1e+20,0.05,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-0.085,-5.225)
+          size (1e+20,0.05,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,0.97,5.225)
+          size (1e+20,2.06,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,0.97,-5.225)
+          size (1e+20,2.06,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+Geometric object tree has depth 5 and 72 object nodes (vs. 9 actual objects)
+Initializing epsilon function...
+Solving for band polarization: zodd.
+1 k-points
+  Vector3<1.1274092016601422, 0.0, 0.0>
+elapsed time for initialization: 0.1673431396484375
+solve_kpoint (1.12741,0,0):
+zoddfreqs:, k index, k1, k2, k3, kmag/2pi, zodd band 1
+Solving for bands 1 to 1...
+    linmin: converged after 4 iterations.
+    iteration    1: trace = 0.4140996892486715 (1.62973% change)
+    linmin: converged after 4 iterations.
+    iteration    2: trace = 0.4136353527284771 (0.112194% change)
+    linmin: converged after 2 iterations.
+    iteration    3: trace = 0.4136003026718195 (0.00847402% change)
+    linmin: converged after 2 iterations.
+    iteration    4: trace = 0.4135975636106139 (0.000662251% change)
+    linmin: converged after 2 iterations.
+    iteration    5: trace = 0.413597122697616 (0.000106604% change)
+    linmin: converged after 2 iterations.
+    iteration    6: trace = 0.4135969972400189 (3.03333e-05% change)
+    linmin: converged after 2 iterations.
+    iteration    7: trace = 0.4135969822443074 (3.62568e-06% change)
+Finished solving for bands 1 to 1 after 7 iterations.
+zoddfreqs:, 1, 1.12741, 0, 0, 1.12741, 0.643115
+elapsed time for k point: 0.9593539237976074
+total elapsed time for run: 1.1267893314361572
+done
+find-k 1 at 1.1274092016601422: -0.002046228887764734
+Initializing eigensolver data
+Computing 1 bands with 1e-07 tolerance
+Working in 3 dimensions.
+Grid size is 1 x 384 x 384.
+Solving for 1 bands at a time.
+Creating Maxwell data...
+Mesh size is 3.
+Lattice vectors:
+     (1, 0, 0)
+     (0, 3, 0)
+     (0, 0, 3)
+Cell volume = 9
+Reciprocal lattice vectors (/ 2 pi):
+     (1, -0, 0)
+     (-0, 0.333333, -0)
+     (0, -0, 0.333333)
+Geometric objects:
+     block, center = (0,-1.055,0)
+          size (1e+20,1.89,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-9.71445e-17,0)
+          size (1e+20,0.22,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,1.055,0)
+          size (1e+20,1.89,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-1.055,5.225)
+          size (1e+20,1.89,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-1.055,-5.225)
+          size (1e+20,1.89,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-0.085,5.225)
+          size (1e+20,0.05,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-0.085,-5.225)
+          size (1e+20,0.05,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,0.97,5.225)
+          size (1e+20,2.06,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,0.97,-5.225)
+          size (1e+20,2.06,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+Geometric object tree has depth 5 and 72 object nodes (vs. 9 actual objects)
+Initializing epsilon function...
+Solving for band polarization: zodd.
+1 k-points
+  Vector3<1.1320080484362969, 0.0, 0.0>
+elapsed time for initialization: 0.16749143600463867
+solve_kpoint (1.13201,0,0):
+zoddfreqs:, k index, k1, k2, k3, kmag/2pi, zodd band 1
+Solving for bands 1 to 1...
+    linmin: converged after 2 iterations.
+    iteration    1: trace = 0.4162314508870255 (0.00115722% change)
+    linmin: converged after 2 iterations.
+    iteration    2: trace = 0.416231054922876 (9.51308e-05% change)
+    linmin: converged after 2 iterations.
+    iteration    3: trace = 0.4162310258832705 (6.9768e-06% change)
+Finished solving for bands 1 to 1 after 3 iterations.
+zoddfreqs:, 1, 1.13201, 0, 0, 1.13201, 0.64516
+elapsed time for k point: 0.4566981792449951
+total elapsed time for run: 0.6242873668670654
+done
+find-k 1 at 1.1320080484362969: -1.60010374072872e-06
+Initializing eigensolver data
+Computing 1 bands with 1e-07 tolerance
+Working in 3 dimensions.
+Grid size is 1 x 384 x 384.
+Solving for 1 bands at a time.
+Creating Maxwell data...
+Mesh size is 3.
+Lattice vectors:
+     (1, 0, 0)
+     (0, 3, 0)
+     (0, 0, 3)
+Cell volume = 9
+Reciprocal lattice vectors (/ 2 pi):
+     (1, -0, 0)
+     (-0, 0.333333, -0)
+     (0, -0, 0.333333)
+Geometric objects:
+     block, center = (0,-1.055,0)
+          size (1e+20,1.89,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-9.71445e-17,0)
+          size (1e+20,0.22,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,1.055,0)
+          size (1e+20,1.89,0.45)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-1.055,5.225)
+          size (1e+20,1.89,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-1.055,-5.225)
+          size (1e+20,1.89,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-0.085,5.225)
+          size (1e+20,0.05,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,-0.085,-5.225)
+          size (1e+20,0.05,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,0.97,5.225)
+          size (1e+20,2.06,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+     block, center = (0,0.97,-5.225)
+          size (1e+20,2.06,10)
+          axes (1,0,0), (0,1,0), (0,0,1)
+Geometric object tree has depth 5 and 72 object nodes (vs. 9 actual objects)
+Initializing epsilon function...
+Solving for band polarization: zodd.
+1 k-points
+  Vector3<1.1320116502458326, 0.0, 0.0>
+elapsed time for initialization: 0.16672635078430176
+solve_kpoint (1.13201,0,0):
+zoddfreqs:, k index, k1, k2, k3, kmag/2pi, zodd band 1
+Solving for bands 1 to 1...
+    linmin: converged after 2 iterations.
+    iteration    1: trace = 0.4162330797673825 (2.58635e-06% change)
+Finished solving for bands 1 to 1 after 1 iterations.
+zoddfreqs:, 1, 1.13201, 0, 0, 1.13201, 0.645161
+elapsed time for k point: 0.2128129005432129
+total elapsed time for run: 0.3796212673187256
+done
+find-k 1 at 1.1320116502458326: -8.341569990300002e-09
+zoddkvals:, 0.6451612903225806, 1, 1, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.132011669022606
+k=[1.132011669022606]
+v_g=[Vector3<0.44424937841707257, 2.0108885473629704e-10, 2.8848563444688655e-10>]
+epsilon: 2.08514-12.6025, mean 2.26042, harm. mean 2.11668, 100% > 1, 1.66662% "fill"
+Figure(1400x800)
+Figure(1400x800)
+
+Elapsed run time = 7.3150 s

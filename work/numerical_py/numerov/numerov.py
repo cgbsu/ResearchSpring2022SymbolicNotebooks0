@@ -147,3 +147,9 @@ def constantPotentialsWithWidths(
             )
         length += widths[ii]
     return potentials  
+
+def regionProbabilitySum(normalizedPositions, probabilityDistribution, from_, to): 
+    points = len(normalizedPositions[1:])
+    fromPoint = round(points * from_)
+    toPoint = round(points * to)
+    return np.sum(probabilityDistribution[fromPoint : toPoint])# * normalizedPositions[fromPoint : toPoint])
