@@ -1,0 +1,62 @@
+from stairwell_builder import *
+
+def calculate_lattice_constant(wavelength_in_units : float, frequency : float) -> float:
+    # wavelength * lattice_constant / (2 * pi * c) = f
+    # --> f * 2 * pi * c / wavelength = lattice_constatnt
+    return frequency * wavelength_in_units
+
+def solve_for_radius(lattice_constant : float, radius_over_lattice_constant_ratio : float) -> float: 
+    return lattice_constant * radius_over_lattice_constant_ratio
+
+def scaled_to_lifetime_stairwell(
+            total_length, 
+            top, 
+            wave_guide_position, 
+            staggered_metal_template, 
+            wave_length : float, 
+            freuquency : float, 
+            admission : float, 
+            mean_life_time : float, 
+            speed_of_light : float, 
+            lifetime_to_bondpad_length_ratio : float, 
+            waveguide_index_width_in_lattice : float, 
+            lattice_wave_guide : bool = True, 
+            layers = RectangleGrid2DTemplate.DEFAULT_LAYERS 
+        ): 
+    lattice_constant : float = calculate_lattice_constant_in_units(
+            wave_length, 
+            frequency
+        )
+    radius : float = solve_for_radius(lattice_constant, admission)
+    if lattice_wave_guide == True: 
+        extent_y_index : int = waveguide_index_width_in_lattice
+        extent_x_index = int(round(total_length / lattice_constant))
+        defect_layer_index = int(np.floor(extent_y_index / 2))
+        grid_template = cc.RectangleGrid2DTemplate(lattice_constant, radius, layers = layers)
+        wave_guide = cc.RectangularGrid2D(
+                grid_template, 
+                (extent_x_index, extent_y_index), 
+                [(-1, defect_layer_index)], 
+                position = wave_guide_position 
+            )
+    tk.add(top, wave_guide_grid)
+    stairwell = Stairwell(
+            top, 
+            wave_guide, 
+            FixedStaggeredPadGroupTemplate(
+                    staggered_metal_template, 
+                    0, 
+                    100, 
+                    [], 
+                    10
+                ), 
+            place_lifetime_scaled_static_pad, 
+            total_length, 
+            builder_arguments = {
+                    "speed_of_light" : 3e14, 
+                    "mean_life_time" : 10e-12
+                }
+        )
+
+
+

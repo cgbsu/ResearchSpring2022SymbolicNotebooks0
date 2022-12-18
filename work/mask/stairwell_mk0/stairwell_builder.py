@@ -91,23 +91,6 @@ def place_lifetime_scaled_static_pad(
                     )
             )
 
-
-
-
-    #= cc.StaggeredBondpad(
-    #        staggered_pad_template, 
-    #        total_stairwell_pad_length, 
-    #        staggered_pad_width, 
-    #        potential_height_ratios, 
-    #        segment_length_ratios, 
-    #        port = (
-    #                left_stairwell_pad_position, 
-    #                top_stairwell_pad_position - staggered_pad_width \
-    #                        - (anode_pad.maxCladdingWidth * 2) \
-    #                        - (offset_from_staggered_pad * 2) - defect_layer_index
-    #            )
-    #    )
-
 def get_wave_guide_width(wave_guide) -> float: 
     if isinstance(wave_guide, pc.Waveguide): 
         return wave_guide.wgt.wg_width
@@ -153,7 +136,7 @@ class Stairwell:
         x = self.start_x_ratio * self.total_length
         for ii in range(self.pad_group_count): 
             tk.add(
-                    top, 
+                    self.top, 
                     self.pad_group_builder(
                             self.wave_guide_center_y, 
                             x, 
@@ -165,7 +148,7 @@ class Stairwell:
                         )
                 )
             tk.add(
-                    top, 
+                    self.top, 
                     self.pad_group_builder(
                             self.wave_guide_center_y, 
                             x, 
@@ -187,7 +170,7 @@ if __name__ == "__main__":
     staggered_metal_template = cc.StaggeredMetalTemplate()
     total_length = 10000
     lattice_constant : float = .5
-    radius :float = .2 * lattice_constant
+    radius : float = .2 * lattice_constant
     extent_y_index : int = 7
     extent_x_index = int(round(total_length / lattice_constant))
     defect_layer_index = int(np.floor(extent_y_index / 2))

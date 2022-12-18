@@ -1,0 +1,23 @@
+Cylender & Slit: > lambda = lambda < lambda
+x6
+Cylender & Slit (Dynamic pads): > lambda = lambda < lambda
+x12
+Cylender & Slit static Daisychain teeth: > lambda = lambda < lambda
+x18
+Cylender & Slit Daisychain w/ Dynamic Pads: > lambda = lambda < lambda
+x24
+Cylender & Slit Daisychain rod w/ shifting ground
+x26
+
+Electric cascade
+x27
+
+Electric dynamic stairwell
+x28
+
+Eelectric Static Stairwell(s)
+x33
+
+MAYBE? Cap designs for dynamic designs
+x45
+
