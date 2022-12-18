@@ -100,7 +100,7 @@ def get_wave_guide_width(wave_guide) -> float:
 
 def get_wave_guide_center_y_position(wave_guide) -> float: 
     if isinstance(wave_guide, pc.Waveguide): 
-        return wave_guide.portlist[0]["port"][1]
+        return wave_guide.portlist["input"]["port"][1]
     else: 
         return wave_guide.position[1] + get_wave_guide_width(wave_guide) / 2
 

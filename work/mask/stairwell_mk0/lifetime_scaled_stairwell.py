@@ -29,6 +29,7 @@ def scaled_to_lifetime_stairwell(
             waveguide_index_width_in_lattice : float, 
             lattice_wave_guide : bool = True, 
             layers = cc.RectangleGrid2DTemplate.DEFAULT_LAYERS, 
+            clad_width = 10
         ): 
     lattice_constant : float = calculate_lattice_constant(
             wave_length, 
@@ -39,13 +40,25 @@ def scaled_to_lifetime_stairwell(
         extent_y_index : int = waveguide_index_width_in_lattice
         extent_x_index = int(round(total_length / lattice_constant))
         defect_layer_index = int(np.floor(extent_y_index / 2))
-        grid_template = cc.RectangleGrid2DTemplate(lattice_constant, radius, layers = layers)
+        grid_template = cc.RectangleGrid2DTemplate(
+                lattice_constant, 
+                radius, 
+                layers = layers
+            )
         wave_guide = cc.RectangularGrid2D(
                 grid_template, 
                 (extent_x_index, extent_y_index), 
                 [(-1, defect_layer_index)], 
                 position = wave_guide_position 
             )
+    else: 
+        wave_guide_template = pc.WaveguideTemplate(
+                wg_type = "slot", 
+                wg_width = lattice_constant * waveguide_index_width_in_lattice, 
+                clad_width = clad_width
+            )
+        wave_guide = pc.Waveguide([wave_guide_position, (total_length, wave_guide_position[1])], wave_guide_template)
+
     tk.add(top, wave_guide)
     return Stairwell(
             top, 
@@ -92,6 +105,21 @@ if __name__ == "__main__":
             lifetime_to_bondpad_length_ratio, 
             waveguide_index_width_in_lattice, 
             lattice_wave_guide, 
+            layers
+        )
+    second_stairwell = scaled_to_lifetime_stairwell(
+            total_length, 
+            top, 
+            (0, 1000), 
+            pad_template, 
+            wave_length, 
+            freuquency, 
+            admission, 
+            mean_life_time,  
+            speed_of_light, 
+            lifetime_to_bondpad_length_ratio, 
+            waveguide_index_width_in_lattice, 
+            False, 
             layers
         )
     gdspy.LayoutViewer()
