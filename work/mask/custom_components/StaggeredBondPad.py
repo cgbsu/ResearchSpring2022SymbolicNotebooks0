@@ -55,6 +55,10 @@ class StaggeredBondpad(tk.Component):
         self.cladSeperation = cladSeperation
         self.spec = {"layers": template.metal_layers, "datatype": template.metal_datatype}
         self.clad_spec = {"layers": template.clad_layers, "datatype": template.clad_datatype}
+        self.padPositions = []
+        self.padExtents = []
+        self.padCladdingPositions = []
+        self.padCladdingExtents = []
 
         self.__build_cell()
         self.__build_ports()
@@ -75,9 +79,11 @@ class StaggeredBondpad(tk.Component):
                 seperation = (self.length * self.seperation[ii])
                 nextLength = (self.lengthRatios[ii] * self.length)
                 length = scanLength + nextLength
+                self.padPositions.append((scanLength + (seperation / 2), -width / 2.0))
+                self.padExtents.append((length + (seperation / 2), width / 2.0))
                 self.pad_locations.append((
-                        (scanLength + (seperation / 2), -width / 2.0), 
-                        (length + (seperation / 2), width / 2.0), 
+                        self.padPositions[-1], 
+                        self.padExtents[-1]
                     ))
                 self.add(gdspy.Rectangle(
                         self.pad_locations[-1][0], 
@@ -89,11 +95,17 @@ class StaggeredBondpad(tk.Component):
                 end = 1 if ii == (len(self.lengthRatios) - 1) or seperationCladding == True else 0
                 start = 1 if ii == 0 or seperationCladding else 0
                 claddingBaseWidth = width if self.staggaredWidth and self.staggaredCladding == True else self.width
-                self.add(gdspy.Rectangle(
-                       (((seperation / 2) + scanLength - (start * claddingWidth)), -claddingBaseWidth / 2.0 - claddingWidth), 
+                self.padCladdingPositions.append(
+                        (((seperation / 2) + scanLength - (start * claddingWidth)), -claddingBaseWidth / 2.0 - claddingWidth), 
+                    )
+                self.padCladdingExtents.append(
                        (((seperation / 2) + length + (end * claddingWidth)), claddingBaseWidth / 2.0 + claddingWidth), 
-                       self.clad_spec["layers"][ii], 
-                       self.clad_spec["datatype"]
+                    )
+                self.add(gdspy.Rectangle(
+                        self.padCladdingPositions[-1], 
+                        self.padCladdingExtents[-1], 
+                        self.clad_spec["layers"][ii], 
+                        self.clad_spec["datatype"]
                    ))
                 scanLength = length + seperation
 

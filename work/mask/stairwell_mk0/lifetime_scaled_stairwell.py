@@ -25,6 +25,8 @@ def scaled_to_lifetime_stairwell(
             admission : float, # radius divided by lattice_constant
             mean_life_time : float, 
             speed_of_light : float, 
+            top_bond_pad_ports : list[tuple[float, float]], 
+            bottom_bond_pad_ports : list[tuple[float, float]], 
             lifetime_to_bondpad_length_ratio : float, 
             waveguide_index_width_in_lattice : float, 
             lattice_wave_guide : bool = True, 
@@ -68,7 +70,8 @@ def scaled_to_lifetime_stairwell(
             total_length, 
             builder_arguments = {
                     "speed_of_light" : speed_of_light, 
-                    "mean_life_time" : mean_life_time
+                    "mean_life_time" : mean_life_time, 
+                    "lifetime_to_bondpad_length_ratio" : lifetime_to_bondpad_length_ratio 
                 }
         )
 
@@ -77,7 +80,7 @@ if __name__ == "__main__":
     top = gdspy.Cell("top")
     wave_guide_position = (0, 200)
     pad_template = FixedStaggeredPadGroupTemplate(
-            cc.StaggeredMetalTemplate(), 
+            cc.StaggeredMetalTemplate(clad_width = 0), 
             0, 
             100, 
             [],
@@ -92,7 +95,7 @@ if __name__ == "__main__":
     waveguide_index_width_in_lattice : float = 7
     lattice_wave_guide : bool = True
     layers = cc.RectangleGrid2DTemplate.DEFAULT_LAYERS
-    stairwell = scaled_to_lifetime_stairwell(
+    grid_stairwell = scaled_to_lifetime_stairwell(
             total_length, 
             top, 
             wave_guide_position, 
@@ -107,7 +110,7 @@ if __name__ == "__main__":
             lattice_wave_guide, 
             layers
         )
-    second_stairwell = scaled_to_lifetime_stairwell(
+    slit_stairwell = scaled_to_lifetime_stairwell(
             total_length, 
             top, 
             (0, 1000), 
@@ -121,6 +124,22 @@ if __name__ == "__main__":
             waveguide_index_width_in_lattice, 
             False, 
             layers
+        )
+    smaller_grid_stairwell = scaled_to_lifetime_stairwell(
+            total_length, 
+            top, 
+            (0, 3000), 
+            pad_template, 
+            wave_length, 
+            freuquency, 
+            admission, 
+            mean_life_time,  
+            speed_of_light, 
+            3 * wave_length * (1 / mean_life_time / speed_of_light), 
+            waveguide_index_width_in_lattice, 
+            lattice_wave_guide, 
+            layers, 
+            clad_width = 0
         )
     gdspy.LayoutViewer()
 
