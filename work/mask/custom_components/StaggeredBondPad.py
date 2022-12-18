@@ -1,7 +1,5 @@
 import gdspy
 from picwriter import toolkit as tk
-#import custom_components as cc
-import StaggeredMetalTemplate as cc
 import numpy as np
 
 # Based off of the Bondpad class from https://github.com/DerekK88/PICwriter/blob/master/picwriter/components/electrical.py
@@ -23,7 +21,7 @@ class StaggeredBondpad(tk.Component):
 
     def __init__(
                 self, 
-                template : cc.StaggeredMetalTemplate, 
+                template, 
                 length=150, 
                 width=100, 
                 potentialRatios = [1, 2 / 3, 1 / 3], 
@@ -66,6 +64,7 @@ class StaggeredBondpad(tk.Component):
         self._auto_transform_()
 
     def __build_cell(self):
+        self.pad_locations = []
         # Sequentially build all the geometric shapes using gdspy path functions
         # for waveguide, then add it to the Cell
         template = self.template
@@ -74,23 +73,22 @@ class StaggeredBondpad(tk.Component):
                 width = (self.width * self.potentialRatios[ii]) if self.staggaredWidth else self.width
                 claddingWidth = self.template.clad_width * self.potentialRatios[ii] if self.staggaredCladding else self.template.clad_width
                 seperation = (self.length * self.seperation[ii])
-                print("sep: ", seperation)
                 nextLength = (self.lengthRatios[ii] * self.length)
-                print("l: ", nextLength)
                 length = scanLength + nextLength
-                self.add(gdspy.Rectangle(
+                self.pad_locations.append((
                         (scanLength + (seperation / 2), -width / 2.0), 
                         (length + (seperation / 2), width / 2.0), 
+                    ))
+                self.add(gdspy.Rectangle(
+                        self.pad_locations[-1][0], 
+                        self.pad_locations[-1][1], 
                         self.spec["layers"][ii], 
                         self.spec["datatype"]
                     ))
                 seperationCladding = ((seperation / 2) > claddingWidth) and (self.cladSeperation[ii] == True)
-                print(seperation / 2, claddingWidth)
-                print(((seperation / 2) > claddingWidth), (self.cladSeperation[ii] == True))
                 end = 1 if ii == (len(self.lengthRatios) - 1) or seperationCladding == True else 0
                 start = 1 if ii == 0 or seperationCladding else 0
                 claddingBaseWidth = width if self.staggaredWidth and self.staggaredCladding == True else self.width
-                print("SE", seperationCladding, start, end)
                 self.add(gdspy.Rectangle(
                        (((seperation / 2) + scanLength - (start * claddingWidth)), -claddingBaseWidth / 2.0 - claddingWidth), 
                        (((seperation / 2) + length + (end * claddingWidth)), claddingBaseWidth / 2.0 + claddingWidth), 
@@ -106,6 +104,7 @@ class StaggeredBondpad(tk.Component):
 
 if __name__ == "__main__": 
     import picwriter.components as pc
+    import StaggeredMetalTemplate as cc
     waveGuideTemplate = pc.WaveguideTemplate()
     waveguide = pc.Waveguide([(0, 500), (1000, 500)], waveGuideTemplate)
     staggaredMetalTemplate = cc.StaggeredMetalTemplate()

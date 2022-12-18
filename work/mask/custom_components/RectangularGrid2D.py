@@ -65,7 +65,6 @@ class RectangularGrid2D(tk.Component):
         radius = self.template.lattice_constant * self.template.radius
         x_position = radius + self.position[DimensionalIndex.X.value]
         y_position = radius + self.position[DimensionalIndex.Y.value]
-        print("Layers: ", self.template.layers, "\nFEATURE TYPE: ", self.template.feature_type)
         for x_index in range(self.extent[DimensionalIndex.X.value]): 
             x = self.template.lattice_constant * x_index + x_position
             for y_index in range(self.extent[DimensionalIndex.Y.value]): 
@@ -82,7 +81,6 @@ class RectangularGrid2D(tk.Component):
                             self.template.layers[self.template.defect_type], 
                             self.template.datatype
                         )
-        print("Final position: ", x, y)
 
     def __build_ports(self): 
         self.portlist["output"] = {"port": (0, 0), "direction": "EAST"}
