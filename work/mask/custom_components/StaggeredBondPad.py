@@ -1,6 +1,7 @@
 import gdspy
 from picwriter import toolkit as tk
-import custom_components as cc
+#import custom_components as cc
+import StaggeredMetalTemplate as cc
 import numpy as np
 
 # Based off of the Bondpad class from https://github.com/DerekK88/PICwriter/blob/master/picwriter/components/electrical.py
@@ -31,7 +32,9 @@ class StaggeredBondpad(tk.Component):
                 staggaredCladding = False, 
                 staggaredWidth = False, 
                 port=(0, 0), 
-                direction="EAST"
+                direction="EAST", 
+                seperation = [0, 0, 0], 
+                cladSeperation = [False, False, False]
             ):
         assert len(lengthRatios) == len(potentialRatios)
         assert len(lengthRatios) == len(template.metal_layers)
@@ -50,6 +53,8 @@ class StaggeredBondpad(tk.Component):
         self.staggaredCladding = staggaredCladding 
         self.staggaredWidth = staggaredWidth 
         self.maxCladdingWidth = self.template.clad_width * np.max(np.array(self.potentialRatios))
+        self.seperation = seperation
+        self.cladSeperation = cladSeperation
         self.spec = {"layers": template.metal_layers, "datatype": template.metal_datatype}
         self.clad_spec = {"layers": template.clad_layers, "datatype": template.clad_datatype}
 
@@ -68,24 +73,31 @@ class StaggeredBondpad(tk.Component):
         for ii in range(len(self.lengthRatios)): 
                 width = (self.width * self.potentialRatios[ii]) if self.staggaredWidth else self.width
                 claddingWidth = self.template.clad_width * self.potentialRatios[ii] if self.staggaredCladding else self.template.clad_width
+                seperation = (self.length * self.seperation[ii])
+                print("sep: ", seperation)
                 nextLength = (self.lengthRatios[ii] * self.length)
+                print("l: ", nextLength)
                 length = scanLength + nextLength
                 self.add(gdspy.Rectangle(
-                        (scanLength, -width / 2.0), 
-                        (length, width / 2.0), 
+                        (scanLength + (seperation / 2), -width / 2.0), 
+                        (length + (seperation / 2), width / 2.0), 
                         self.spec["layers"][ii], 
                         self.spec["datatype"]
                     ))
-                end = 1 if ii == (len(self.lengthRatios) - 1) else 0
-                start = 1 if ii == 0 else 0
-                claddingBaseWidth = width if self.staggaredWidth and self.staggaredCladding else self.width
+                seperationCladding = ((seperation / 2) > claddingWidth) and (self.cladSeperation[ii] == True)
+                print(seperation / 2, claddingWidth)
+                print(((seperation / 2) > claddingWidth), (self.cladSeperation[ii] == True))
+                end = 1 if ii == (len(self.lengthRatios) - 1) or seperationCladding == True else 0
+                start = 1 if ii == 0 or seperationCladding else 0
+                claddingBaseWidth = width if self.staggaredWidth and self.staggaredCladding == True else self.width
+                print("SE", seperationCladding, start, end)
                 self.add(gdspy.Rectangle(
-                       ((scanLength - (start * claddingWidth)), -claddingBaseWidth / 2.0 - claddingWidth), 
-                       ((length + (end * claddingWidth)), claddingBaseWidth / 2.0 + claddingWidth), 
+                       (((seperation / 2) + scanLength - (start * claddingWidth)), -claddingBaseWidth / 2.0 - claddingWidth), 
+                       (((seperation / 2) + length + (end * claddingWidth)), claddingBaseWidth / 2.0 + claddingWidth), 
                        self.clad_spec["layers"][ii], 
                        self.clad_spec["datatype"]
                    ))
-                scanLength = length
+                scanLength = length + seperation
 
     def __build_ports(self):
         # Portlist format:
@@ -117,11 +129,30 @@ if __name__ == "__main__":
             staggaredCladding = True, 
             port = (1000, 0)
         )
+    smallSeperationBondPad = StaggeredBondpad(
+            staggaredMetalTemplate, 
+            port = (0, 2000), 
+            seperation = [.05, .05, .05]
+        )
+    largerSeperationBondPad = StaggeredBondpad(
+            staggaredMetalTemplate, 
+            port = (1000, 2000), 
+            seperation = [.30, .30, .30], 
+            cladSeperation = [True, True, True]
+        )
+    largerSeperationNoSeperationCladdingBondPad = StaggeredBondpad(
+            staggaredMetalTemplate, 
+            port = (2000, 2000), 
+            seperation = [.30, .30, .30]
+        )
     top = gdspy.Cell("top")
     tk.add(top, thicknessStaggardBondPad)
     tk.add(top, widthStaggardBondPad)
     tk.add(top, claddingStaggardBondPad)
     tk.add(top, claddingAndWidthStaggardBondPad)
+    tk.add(top, smallSeperationBondPad)
+    tk.add(top, largerSeperationBondPad)
+    tk.add(top, largerSeperationNoSeperationCladdingBondPad) 
     tk.add(top, waveguide)
     tk.build_mask(top, waveGuideTemplate, final_layer = 17, final_datatype = 0)
     gdspy.LayoutViewer()

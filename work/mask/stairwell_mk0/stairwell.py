@@ -166,7 +166,7 @@ def main():
     print("Done generating geometry")
     tk.build_mask(top, OBLIGITORY_WAVE_GUIDE_TEMPLATE, final_layer = 200, final_datatype = 0)
     print("Done building mask, writing file")
-    #gdspy.write_gds('stairwell_mk0_static_with_gridded_wave_guide_first_mask.gds', unit=1.0e-6, precision=1.0e-9)
+    gdspy.write_gds('stairwell_mk0_static_with_gridded_wave_guide_first_mask_for_real.gds', unit=1.0e-6, precision=1.0e-9)
     print("Done writing file.")
     gdspy.LayoutViewer()
 
