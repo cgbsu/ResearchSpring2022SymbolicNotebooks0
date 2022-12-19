@@ -36,7 +36,8 @@ def place_static_one_well_static_test_series(
                     .1 * MICROMETERS_IN_CENTIMETER
                 ), 
             trace_length_ratio = 2, 
-            steps = 3
+            steps = 3, 
+            flip_pads = False
         ): 
     total_stairwell_pad_length = total_stairwell_lifetime_scaled_pad_length(
             wave_length, 
@@ -48,13 +49,13 @@ def place_static_one_well_static_test_series(
     bond_pad_width = bond_pad_dimensions[cc.DimensionalIndex.X.value]
     bond_pad_height = bond_pad_dimensions[cc.DimensionalIndex.Y.value]
     position = start_position
-    def make_top_pad():
+    def make_top_pad(x):
         return pc.Bondpad(
                 metal_template, 
                 bond_pad_width, 
                 bond_pad_height, 
                 port = (
-                        position[cc.DimensionalIndex.X.value], 
+                        x, 
                         position[cc.DimensionalIndex.Y.value] \
                                 + (bond_pad_height * trace_length_ratio) * 2 \
                                 + pad_template.width * 2 + waveguide_index_width_in_lattice 
@@ -64,9 +65,10 @@ def place_static_one_well_static_test_series(
             metal_template, 
             bond_pad_width, 
             bond_pad_height, 
-            port = position
+            port = start_position
         )
-    top_pad = make_top_pad()
+    top_pad = make_top_pad(total_stairwell_pad_length - bond_pad_width \
+            if flip_pads == False else start_position[cc.DimensionalIndex.X.value])
     tk.add(top, top_pad)
     tk.add(top, bottom_pad)
     wave_length_scales = [
@@ -96,13 +98,15 @@ def place_static_one_well_static_test_series(
         nonlocal bottom_pad
         nonlocal wave_guide_position
         nonlocal position
+        nonlocal flip_pads
+        right_side = False
         [False] if wave_length_scale_tests else [False, True]
         is_lattice_wave_guide = []
         if lattice_wave_guides == True: 
             is_lattice_wave_guide.append(True)
         if slot_wave_guides == True: 
             is_lattice_wave_guide.append(False)
-        for lattice_wave_guide in [False]:#is_lattice_wave_guide: 
+        for lattice_wave_guide in is_lattice_wave_guide: 
             for scale in scales: 
                 grid_stairwell = scaled_to_lifetime_stairwell(
                         total_length / 2 if half == True else total_length, 
@@ -123,15 +127,21 @@ def place_static_one_well_static_test_series(
                         layers, 
                         scale_to_wave_length = wave_length_scaled
                     )
-                position = top_pad.port
+                position = (
+                        position[cc.DimensionalIndex.X.value], 
+                        top_pad.port[cc.DimensionalIndex.Y.value]
+                    )
                 wave_guide_position = calculate_wave_guide_position()
                 bottom_pad = top_pad
-                top_pad = make_top_pad()
+                new_pad_x = start_position[cc.DimensionalIndex.X.value] \
+                        if right_side == False or flip_pads == False \
+                        else (total_stairwell_pad_length - bond_pad_width)
+                right_side = not right_side 
+                top_pad = make_top_pad(new_pad_x)
                 tk.add(top, top_pad)
     if wave_length_scale_tests == True: 
         place_with_scales(wave_length_scales, True, False)
-    #print("Lifetime scales")
-    #place_with_scales(lifetime_scales, False, False)
+    place_with_scales(lifetime_scales, False, False)
 
 if __name__ == "__main__": 
     top = gdspy.Cell("top")
@@ -143,7 +153,8 @@ if __name__ == "__main__":
             [],
             10
         )
-    place_static_one_well_static_test_series(top, metal_template, pad_template, lattice_wave_guides = False)
+    place_static_one_well_static_test_series(top, metal_template, pad_template, lattice_wave_guides = False, flip_pads = True)
     gdspy.LayoutViewer()
+    gdspy.write_gds('stairwell_2_mask_flipper.gds', unit=1.0e-6, precision=1.0e-9)
 
 
