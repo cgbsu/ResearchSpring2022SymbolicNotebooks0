@@ -95,12 +95,14 @@ class StaggeredBondpad(tk.Component):
                 end = 1 if ii == (len(self.lengthRatios) - 1) or seperationCladding == True else 0
                 start = 1 if ii == 0 or seperationCladding else 0
                 claddingBaseWidth = width if self.staggaredWidth and self.staggaredCladding == True else self.width
-                self.padCladdingPositions.append(
-                        (((seperation / 2) + scanLength - (start * claddingWidth)), -claddingBaseWidth / 2.0 - claddingWidth), 
-                    )
-                self.padCladdingExtents.append(
-                       (((seperation / 2) + length + (end * claddingWidth)), claddingBaseWidth / 2.0 + claddingWidth), 
-                    )
+                self.padCladdingPositions.append((
+                        ((seperation / 2) + scanLength - (start * claddingWidth)), 
+                         -claddingBaseWidth / 2.0 - claddingWidth
+                    ))
+                self.padCladdingExtents.append((
+                        ((seperation / 2) + length + (end * claddingWidth)), 
+                        claddingBaseWidth / 2.0 + claddingWidth
+                    ))
                 self.add(gdspy.Rectangle(
                         self.padCladdingPositions[-1], 
                         self.padCladdingExtents[-1], 

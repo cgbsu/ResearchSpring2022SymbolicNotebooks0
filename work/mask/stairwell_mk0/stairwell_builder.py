@@ -81,6 +81,16 @@ class PadGroup:
         tk.add(top, self.pad)
         for route in self.routs: 
             tk.add(top, route)
+def total_stairwell_lifetime_scaled_pad_length(
+            wave_length : float, 
+            mean_life_time : float, 
+            speed_of_light : float, 
+            lifetime_to_bondpad_length_ratio : float = 3, 
+            scale_to_wave_length = False
+        ): 
+    return mean_life_time * speed_of_light * lifetime_to_bondpad_length_ratio \
+            if scale_to_wave_length == False \
+            else wave_length * lifetime_to_bondpad_length_ratio
 
 def place_lifetime_scaled_static_pad(
             wave_guide_center_y : float, 
@@ -93,9 +103,18 @@ def place_lifetime_scaled_static_pad(
             metal_route_template : pc.MetalTemplate, 
             mean_life_time : float, 
             speed_of_light : float, 
-            lifetime_to_bondpad_length_ratio : float = 3
+            lifetime_to_bondpad_length_ratio : float = 3, 
+            scale_to_wave_length = False, 
+            wave_length = 1.5, 
         ) -> PadGroup: 
-    total_stairwell_pad_length = mean_life_time * speed_of_light * lifetime_to_bondpad_length_ratio
+    print("R: ", lifetime_to_bondpad_length_ratio)
+    total_stairwell_pad_length = total_stairwell_lifetime_scaled_pad_length(
+            wave_length, 
+            mean_life_time, 
+            speed_of_light, 
+            lifetime_to_bondpad_length_ratio, 
+            scale_to_wave_length
+        )
     if (x + total_stairwell_pad_length) >= total_length: 
         assert total_length > total_stairwell_pad_length
         x = (total_length - total_stairwell_pad_length) / 2
@@ -185,13 +204,28 @@ class Stairwell:
             )
         for ii in range(self.pad_group_count): 
             self.top_groups.append(make_pad(x, PadType.TOP, self.top_bond_pad_ports))
+            print("T: ", self.top_bond_pad_ports)
             self.bottom_groups.append(make_pad(x, PadType.BOTTOM, self.bottom_bond_pad_ports))
+            print("B: ", self.bottom_bond_pad_ports)
             x = self.top_groups[-1].pad.padExtents[-1]
             self.top_groups[-1].integrate(self.top)
             self.bottom_groups[-1].integrate(self.top)
 
     def __build_ports(self): 
         self.portlist["output"] = {"port": (0, 0), "direction": "EAST"}
+
+    def vertical_width(self): 
+        vertical_extents = []
+        for group in self.top_groups[-1]: 
+            vertical_extents.append(
+                    group.pad.padExtents[-1][cc.DimensionalIndex.Y.value]
+                )
+        for group in self.bottom_groups[-1]: 
+            vertical_extents.append(
+                    group.pad.padExtents[-1][cc.DimensionalIndex.Y.value]
+                )
+        vertical_extents = np.array(vertical_extents)
+        return np.abs(np.min(vertical_extents) - np.max(vertical_extents))
 
 if __name__ == "__main__": 
     import gdspy

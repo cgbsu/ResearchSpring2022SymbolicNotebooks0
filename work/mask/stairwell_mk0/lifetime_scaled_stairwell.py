@@ -25,13 +25,15 @@ def scaled_to_lifetime_stairwell(
             admission : float, # radius divided by lattice_constant
             mean_life_time : float, 
             speed_of_light : float, 
-            top_bond_pad_ports : list[tuple[float, float]], 
-            bottom_bond_pad_ports : list[tuple[float, float]], 
             lifetime_to_bondpad_length_ratio : float, 
             waveguide_index_width_in_lattice : float, 
+            top_bond_pad_ports : tuple[float, float], 
+            bottom_bond_pad_ports : tuple[float, float], 
+            route_template, 
             lattice_wave_guide : bool = True, 
             layers = cc.RectangleGrid2DTemplate.DEFAULT_LAYERS, 
-            clad_width = 10
+            clad_width = 10, 
+            scale_to_wave_length = False
         ): 
     lattice_constant : float = calculate_lattice_constant(
             wave_length, 
@@ -68,10 +70,17 @@ def scaled_to_lifetime_stairwell(
             pad_template, 
             place_lifetime_scaled_static_pad, 
             total_length, 
+            Stairwell.DEFAULT_GROUP_COUNT, 
+            Stairwell.DEFAULT_START_X_RATIO, 
+            top_bond_pad_ports, 
+            bottom_bond_pad_ports, 
+            route_template, 
             builder_arguments = {
                     "speed_of_light" : speed_of_light, 
                     "mean_life_time" : mean_life_time, 
-                    "lifetime_to_bondpad_length_ratio" : lifetime_to_bondpad_length_ratio 
+                    "lifetime_to_bondpad_length_ratio" : lifetime_to_bondpad_length_ratio, 
+                    "scale_to_wave_length" : scale_to_wave_length, 
+                    "wave_length" : wave_length
                 }
         )
 
@@ -79,6 +88,7 @@ if __name__ == "__main__":
     total_length = 10000
     top = gdspy.Cell("top")
     wave_guide_position = (0, 200)
+    metal_template = pc.MetalTemplate()
     pad_template = FixedStaggeredPadGroupTemplate(
             cc.StaggeredMetalTemplate(clad_width = 0), 
             0, 
@@ -95,6 +105,10 @@ if __name__ == "__main__":
     waveguide_index_width_in_lattice : float = 7
     lattice_wave_guide : bool = True
     layers = cc.RectangleGrid2DTemplate.DEFAULT_LAYERS
+    bottom_pad = pc.Bondpad(metal_template, port = (1000, 2000))
+    top_pad = pc.Bondpad(metal_template, port=(10000, 2000))
+    tk.add(top, top_pad)
+    tk.add(top, bottom_pad)
     grid_stairwell = scaled_to_lifetime_stairwell(
             total_length, 
             top, 
@@ -107,8 +121,11 @@ if __name__ == "__main__":
             speed_of_light, 
             lifetime_to_bondpad_length_ratio, 
             waveguide_index_width_in_lattice, 
+            [top_pad.portlist["output"]["port"]], 
+            [bottom_pad.portlist["output"]["port"]], 
+            metal_template, 
             lattice_wave_guide, 
-            layers
+            layers, 
         )
     slit_stairwell = scaled_to_lifetime_stairwell(
             total_length, 
@@ -122,8 +139,11 @@ if __name__ == "__main__":
             speed_of_light, 
             lifetime_to_bondpad_length_ratio, 
             waveguide_index_width_in_lattice, 
+            [top_pad.portlist["output"]["port"]], 
+            [bottom_pad.portlist["output"]["port"]], 
+            metal_template, 
             False, 
-            layers
+            layers, 
         )
     smaller_grid_stairwell = scaled_to_lifetime_stairwell(
             total_length, 
@@ -137,6 +157,9 @@ if __name__ == "__main__":
             speed_of_light, 
             3 * wave_length * (1 / mean_life_time / speed_of_light), 
             waveguide_index_width_in_lattice, 
+            [top_pad.portlist["output"]["port"]], 
+            [bottom_pad.portlist["output"]["port"]], 
+            metal_template, 
             lattice_wave_guide, 
             layers, 
             clad_width = 0
