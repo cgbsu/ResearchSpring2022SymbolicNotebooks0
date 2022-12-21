@@ -150,7 +150,7 @@ if __name__ == "__main__":
             cc.StaggeredMetalTemplate(clad_width = 0), 
             0, 
             100, 
-            [],
+            [(0, 0), (1, 0)],
             10
         )
     place_static_one_well_static_test_series(top, metal_template, pad_template, lattice_wave_guides = False, flip_pads = True)

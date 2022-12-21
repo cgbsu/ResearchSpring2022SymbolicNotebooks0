@@ -1,6 +1,7 @@
 import gdspy
 from picwriter import toolkit as tk
 import numpy as np
+import custom_components as cc
 
 # Based off of the Bondpad class from https://github.com/DerekK88/PICwriter/blob/master/picwriter/components/electrical.py
 class StaggeredBondpad(tk.Component):
@@ -63,6 +64,12 @@ class StaggeredBondpad(tk.Component):
         self.__build_cell()
         self.__build_ports()
 
+
+        self.maxWidth = np.abs(
+                np.max(self.padExtents[..., cc.DimensionalIndex.Y.value]) \
+                        - np.min(self.padPositions[..., cc.DimensionalIndex.Y.value])
+            )
+
         """ Translate & rotate the ports corresponding to this specific component object
         """
         self._auto_transform_()
@@ -110,6 +117,8 @@ class StaggeredBondpad(tk.Component):
                         self.clad_spec["datatype"]
                    ))
                 scanLength = length + seperation
+        self.padExtents = np.array(self.padExtents)
+        self.padPositions = np.array(self.padPositions)
 
     def __build_ports(self):
         # Portlist format:

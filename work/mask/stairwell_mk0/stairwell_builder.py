@@ -48,7 +48,7 @@ class FixedStaggeredPadGroupTemplate:
                 relative_input_locations : list[tuple[float, float]], 
                 pad_to_wave_guide_offset : float, 
                 potential_ratios = [1, 2 / 3, 1 / 3], 
-                length_ratios = [1 / 3, 1 / 3, 1 / 3], 
+                length_ratios = [1 / 3, 1 / 3, 1 / 3]
             ): 
         self.relative_input_locations = relative_input_locations
         self.template = template
@@ -81,6 +81,7 @@ class PadGroup:
         tk.add(top, self.pad)
         for route in self.routs: 
             tk.add(top, route)
+
 def total_stairwell_lifetime_scaled_pad_length(
             wave_length : float, 
             mean_life_time : float, 
@@ -103,6 +104,7 @@ def place_lifetime_scaled_static_pad(
             metal_route_template : pc.MetalTemplate, 
             mean_life_time : float, 
             speed_of_light : float, 
+            connection_matrix : tuple[tuple[bool]] = ((True, False), ), 
             lifetime_to_bondpad_length_ratio : float = 3, 
             scale_to_wave_length = False, 
             wave_length = 1.5, 
@@ -132,11 +134,26 @@ def place_lifetime_scaled_static_pad(
             template.length_ratios, 
             port = (x, wave_guide_center_y + (offset_scalar * y_offset))
         )
-    route = pc.MetalRoute(
-            simple_build_trace(pad.portlist["output"]["port"], bond_pad_ports[-1]), 
-            metal_route_template
-        )
-    return PadGroup(pad, [route])
+    pad_position = pad.portlist["output"]["port"]
+    routes = []
+    for rout_input_index in range(len(template.relative_input_locations)): 
+        for bond_pad_index in range(len(bond_pad_ports)): 
+            if connection_matrix[bond_pad_index][rout_input_index] == True:
+                routes.append(pc.MetalRoute(
+                        simple_build_trace(
+                                (
+                                        pad.port[cc.DimensionalIndex.X.value] \
+                                                + template.relative_input_locations[rout_input_index][cc.DimensionalIndex.X.value] \
+                                                * total_stairwell_pad_length, 
+                                        pad.port[cc.DimensionalIndex.Y.value] \
+                                                + template.relative_input_locations[rout_input_index][cc.DimensionalIndex.Y.value] \
+                                                * pad.maxWidth
+                                ), 
+                                bond_pad_ports[-1]
+                            ), 
+                        metal_route_template
+                    ))
+    return PadGroup(pad, routes)
 
 
 def get_wave_guide_width(wave_guide) -> float: 
@@ -155,6 +172,10 @@ def get_wave_guide_center_y_position(wave_guide) -> float:
 class Stairwell: 
     DEFAULT_START_X_RATIO = 1 / 5
     DEFAULT_GROUP_COUNT = 1
+    DEFAULT_CONNECTION_MATRIX = {
+            PadType.TOP : ((True, False), ), 
+            PadType.BOTTOM : ((True, False), )
+        }
     def __init__(
                 self, 
                 top, 
@@ -167,7 +188,8 @@ class Stairwell:
                 top_bond_pad_ports = [], 
                 bottom_bond_pad_ports = [], 
                 route_template = pc.MetalTemplate(), 
-                builder_arguments = {}
+                builder_arguments = {}, 
+                connection_matrix : tuple[tuple[bool]] = DEFAULT_CONNECTION_MATRIX
             ):
         self.top = top
         self.wave_guide = wave_guide
@@ -185,6 +207,7 @@ class Stairwell:
         self.bottom_bond_pad_ports = bottom_bond_pad_ports 
         self.route_template = route_template
         self.portlist = {}
+        self.connection_matrix = connection_matrix 
 
         self.__build_cell()
         self.__build_ports()
@@ -200,7 +223,8 @@ class Stairwell:
                 pad_type, 
                 bondpads, 
                 self.route_template, 
-                **self.builder_arguments
+                **self.builder_arguments, 
+                connection_matrix = self.connection_matrix[pad_type]
             )
         for ii in range(self.pad_group_count): 
             self.top_groups.append(make_pad(x, PadType.TOP, self.top_bond_pad_ports))

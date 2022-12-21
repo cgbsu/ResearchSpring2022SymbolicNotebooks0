@@ -81,7 +81,11 @@ def scaled_to_lifetime_stairwell(
                     "lifetime_to_bondpad_length_ratio" : lifetime_to_bondpad_length_ratio, 
                     "scale_to_wave_length" : scale_to_wave_length, 
                     "wave_length" : wave_length
-                }
+                }, 
+            connection_matrix = {
+                PadType.TOP : ((True, False), ), 
+                PadType.BOTTOM : ((False, True), )
+            }
         )
 
 if __name__ == "__main__": 
